@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "boardlink"
+version = "0.1.0"
+description = "Connect to climbing-board apps (Kilter, Tension, MoonBoard) and pull normalized logbooks."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+keywords = ["climbing", "kilter", "tension", "moonboard", "logbook"]
+dependencies = [
+  "boardlib>=0.6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.urls]
+Homepage = "https://github.com/milanwillett/boardlink"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/boardlink"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
