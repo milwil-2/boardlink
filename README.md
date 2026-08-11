@@ -1,42 +1,49 @@
 # boardlink
 
-Connect to climbing-board apps — **Kilter**, **Tension**, and **MoonBoard** — and pull a user's
-logbook as normalized, board-agnostic ascents. One data contract, available in both **TypeScript**
-and **Python**, so you can drop it into any future project.
+Connect to climbing-board apps — **Kilter**, **Tension**, and **MoonBoard** — and pull your logbook
+as normalized, board-agnostic ascents. One data contract, in both **TypeScript** and **Python**.
 
-None of these boards has an official public API. boardlink wraps the reverse-engineered endpoints
-(TypeScript) / the community [`boardlib`](https://github.com/lemeryfertitta/BoardLib) package
-(Python) and normalizes everything into a single `Ascent` shape.
+None of these boards has an official public API. boardlink implements the same flows their own apps
+use, so you can get *your own* climbing data out of them. It's the only library that supports the
+**new Kilter app** (the kiltergrips.com backend Kilter moved to after leaving Aurora in 2025).
 
-> ⚠️ **Security:** a password is used **once** to obtain a session token and is never stored. Persist
-> only the returned token for re-syncs. Never log or save the raw password.
+> A password is used once to obtain a session token and is never stored. Persist only the returned
+> token for re-syncs.
+
+## Boards
+
+| Board | Backend | Auth |
+| --- | --- | --- |
+| Kilter | kiltergrips.com (Keycloak + PowerSync) | OAuth2 + PKCE, refresh token |
+| Tension | Aurora (tensionboardapp2.com) | session token |
+| MoonBoard | moonboard.com | cookie / CSRF session |
+
+The reverse-engineered new-Kilter API is documented in [docs/kilter-new-api.md](docs/kilter-new-api.md).
 
 ## Repo layout
 
 ```
-boardlink/
-├── packages/
-│   ├── core/     @boardlink/core   — TS SDK: connectKilter / connectTension / connectMoonboard
-│   └── server/   @boardlink/server — thin HTTP wrapper + zero-dep Node server + CLI
-├── python/       boardlink (PyPI)  — connect_kilter / connect_tension / connect_moonboard
-└── tools/
-    └── board_probe.mjs — safe, redacting live-API diagnostic (see "Verifying live" below)
+packages/
+  core/     @boardlink/core    TypeScript SDK
+  server/   @boardlink/server  HTTP wrapper + zero-dep Node server + CLI
+python/     boardlink          native Python package (PyPI)
+tools/                         diagnostics used while building the connectors
 ```
 
-## The data contract (`Ascent`)
+## The Ascent contract
 
-Identical in TS and Python (snake_case in Python):
+The same shape in both languages (snake_case in Python):
 
 ```ts
 interface Ascent {
   board: "kilter" | "tension" | "moonboard";
   climbName: string;
   date: string;        // ISO
-  grade?: string;      // displayed, e.g. "6C+/V5" or "7A+"
+  grade?: string;      // e.g. "6C+/V5" or "7A+"
   userGrade?: string;
   vGrade?: number;     // parsed V-scale integer
   tries?: number;      // 1 = flash
-  angle?: number;      // MoonBoard fixed 40
+  angle?: number;
   isBenchmark?: boolean;
   isMirror?: boolean;
   isRepeat?: boolean;
@@ -57,25 +64,22 @@ import { connectKilter, BoardError } from "@boardlink/core";
 
 try {
   const { token, ascents } = await connectKilter({ username, password });
-  // store `token`; re-sync later with connectKilter({ token })
+  // store `token` (a refresh token); re-sync later with connectKilter({ token })
 } catch (e) {
   if (e instanceof BoardError && e.code === "bad-credentials") { /* ... */ }
 }
 ```
 
-### As an HTTP service
+Run it as an HTTP service, or embed the handler in an existing framework:
 
 ```bash
 pnpm --filter @boardlink/server build
-PORT=8787 node packages/server/dist/cli.js
-# POST http://localhost:8787/kilter  { "username": "...", "password": "..." }
+PORT=8787 node packages/server/dist/cli.js   # POST /kilter | /tension | /moonboard
 ```
-
-Or embed the framework-agnostic handler in Next.js / Express / Hono:
 
 ```ts
 import { handleBoardRequest } from "@boardlink/server";
-const { status, body } = await handleBoardRequest("moonboard", await req.json());
+const { status, body } = await handleBoardRequest("kilter", await req.json());
 ```
 
 ## Python
@@ -87,27 +91,23 @@ pytest
 ```
 
 ```python
-from boardlink import connect_kilter, BoardError
+from boardlink import connect_kilter
 
-try:
-    result = connect_kilter(username, password)
-    for ascent in result.ascents:
-        print(ascent.date, ascent.grade, ascent.v_grade)
-except BoardError as e:
-    print(e.code, e)
+result = connect_kilter("you@example.com", "password")
+for a in result.ascents:
+    print(a.date, a.grade, a.v_grade)
 ```
 
-## Verifying live
+## Responsible use
 
-The connectors' request/response *mapping* is unit-tested, but the live login handshakes can only be
-verified against a real account. `tools/board_probe.mjs` hits the real endpoints and prints only
-redacted, structural info (no secrets, names, or comments):
+boardlink exists for interoperability — getting your own data out of an app you have an account with.
+Please keep it that way:
 
-```bash
-BOARD_USER='you@example.com' BOARD_PASS='...' node tools/board_probe.mjs kilter
-```
-
-See the file header for details on what it redacts.
+- Use it with your own account and your own data.
+- Don't scrape other users' data or republish a board's proprietary climb database.
+- Be gentle: cache results, don't hammer the servers, and prefer `resolveGrades: false` (Kilter) when
+  you only need the raw logbook.
+- Automated access may be against a board's terms of service; that's on you to check.
 
 ## License
 
