@@ -1,8 +1,8 @@
 # boardlink (Python)
 
-Connect to climbing-board apps (Kilter, Tension, MoonBoard) and pull a normalized logbook. Wraps the
-community [`boardlib`](https://github.com/lemeryfertitta/BoardLib) package and normalizes every entry
-into a board-agnostic `Ascent` — the same contract as the TypeScript `@boardlink/core` SDK.
+Connect to climbing-board apps (Kilter, Tension, MoonBoard) and pull a normalized logbook. Native
+implementation — no third-party board library — emitting the same `Ascent` shape as the TypeScript
+`@boardlink/core` SDK.
 
 ```bash
 pip install boardlink
@@ -15,20 +15,18 @@ result = connect_kilter("you@example.com", "password")
 for a in result.ascents:
     print(a.date, a.grade, a.v_grade, a.tries)
 
+# Re-sync later without the password (store result.token, which is the refresh token):
+result = connect_kilter(token=saved_refresh_token)
+
 try:
     connect_moonboard("you@example.com", "wrong")
 except BoardError as e:
     print(e.code)  # e.g. "bad-credentials"
 ```
 
-## Notes
-
-- A password is used once to authenticate through `boardlib`; boardlink stores nothing.
-- `boardlib` re-authenticates per call, so `ConnectResult.token` is empty for the Python path (unlike
-  the TS SDK, which returns a reusable session token).
-- All `boardlib`-specific calls live in `boardlink/_backend.py` — the single place to adjust if your
-  installed `boardlib` version exposes different function names. The normalization (`normalize_entry`)
-  and grade parsing are pure and covered by tests that don't require `boardlib` or a network.
+Kilter uses the new kiltergrips.com backend (Keycloak auth + PowerSync); Tension uses the Aurora
+API; MoonBoard uses its own cookie/CSRF session. A password is used once to authenticate and is
+never stored — persist only the returned token.
 
 ## Develop
 
@@ -36,3 +34,6 @@ except BoardError as e:
 pip install -e ".[dev]"
 pytest
 ```
+
+The parsing and normalization logic is covered by tests that need no network. Only `requests` is
+required at runtime.

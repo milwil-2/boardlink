@@ -1,9 +1,9 @@
-"""Grade parsing — a direct port of the TS `grades.ts`, kept behaviourally identical."""
-
 from __future__ import annotations
 
 import re
 from typing import Optional
+
+# Boards display the V-scale ("V5"), Font ("6C+", "7A"), or a compound "6C+/V5". Mirrors grades.ts.
 
 _FONT_TO_V = {
     "4": 0, "5": 1, "5+": 2,
@@ -14,17 +14,11 @@ _FONT_TO_V = {
 
 
 def font_to_v(num: int, letter: Optional[str] = None, plus: Optional[str] = None) -> Optional[int]:
-    """Coarse Font -> V map across the boulder grades these boards cover."""
     key = f"{num}{letter or ''}{plus or ''}"
-    return (
-        _FONT_TO_V.get(key)
-        or _FONT_TO_V.get(f"{num}{letter or ''}")
-        or _FONT_TO_V.get(str(num))
-    )
+    return _FONT_TO_V.get(key) or _FONT_TO_V.get(f"{num}{letter or ''}") or _FONT_TO_V.get(str(num))
 
 
 def parse_v_grade(grade: Optional[str]) -> Optional[int]:
-    """Parse a displayed grade to a V-scale integer (handles "V5", "6C+/V5", and Font "7A+")."""
     if not grade:
         return None
     g = grade.strip().upper()
