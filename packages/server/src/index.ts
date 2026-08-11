@@ -1,14 +1,8 @@
 import { connectBoard, BoardError, type BoardSystem, type ConnectOptions } from "@boardlink/core";
 
-/**
- * Framework-agnostic core of the server. Give it a board name and a parsed JSON body; get back a
- * status code and JSON payload. Use this directly inside Next.js route handlers, Express, Hono, or
- * the bundled Node server below — it does no I/O of its own beyond calling the connector.
- *
- * Request body: { username, password } | { token }
- * Success:      200 { board, token, ascents }
- * Failure:      4xx/5xx { error, code, reauth? }
- */
+// Framework-agnostic request handler: takes a board name and a parsed JSON body, returns a status
+// and JSON payload. Drop it into Next.js, Express, Hono, or the bundled Node server. Request body is
+// { username, password } or { token }; success is { board, token, ascents }, errors { error, code }.
 export interface BoardRequestBody {
   username?: string;
   password?: string;

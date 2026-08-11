@@ -56,6 +56,12 @@ export interface ConnectOptions {
   fetch?: typeof fetch;
   /** Override the User-Agent header (MoonBoard is picky about it). */
   userAgent?: string;
+  /**
+   * Kilter only: resolve each climb's grade from the community rating endpoint (one request per
+   * unique climb). Default true. Set false for a fast logbook-only pull (dates/angles/tries, no
+   * grades) — useful for large logbooks or to be gentle on Kilter's servers.
+   */
+  resolveGrades?: boolean;
 }
 
 /** A known, user-actionable failure category. */

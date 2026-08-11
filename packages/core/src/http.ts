@@ -1,12 +1,9 @@
-/** Shared HTTP helpers: a default UA and a minimal cookie jar for MoonBoard's session login. */
-
 export const DEFAULT_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36";
 
-/** A minimal cookie jar: name -> value, serializable back into a Cookie header. */
+// A cookie jar (name -> value) that serializes back into a Cookie header, for MoonBoard's session.
 export type CookieJar = Map<string, string>;
 
-/** Merge a response's Set-Cookie header(s) into the jar. */
 export function addSetCookies(jar: CookieJar, res: Response): void {
   const anyHeaders = res.headers as unknown as { getSetCookie?: () => string[] };
   const list: string[] =

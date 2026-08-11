@@ -2,44 +2,35 @@ import type { Ascent, BoardAuth, ConnectOptions, ConnectResult } from "./types.j
 import { BoardError } from "./types.js";
 import { parseVGrade } from "./grades.js";
 
-/**
- * Aurora-backed boards (Kilter, Tension). No official API; this mirrors the official apps:
- *   1. POST {api}/sessions  { username, password, tou, pp, ua }  -> { session: <token> }
- *   2. POST {api}/sync       (Cookie: token=<token>)             -> { ascents, difficulty_grades }
- *
- * The pure functions (bodies, mapping) are I/O-free and unit-tested; {@link connectAurora} does the
- * two fetches and returns normalized ascents plus a reusable token.
- */
+// Aurora-backed boards (Tension). No official API; the flow mirrors the app:
+//   POST /sessions { username, password, ... } -> { session: <token> }
+//   POST /sync     (Cookie: token=<token>)     -> { ascents, difficulty_grades }
+// The pure helpers below are I/O-free; connectAurora does the two requests.
 
 export type AuroraBoard = "kilter" | "tension";
 
-export const AURORA_HOSTS: Record<AuroraBoard, { web: string; api: string }> = {
-  kilter: { web: "https://kilterboardapp.com", api: "https://api.kilterboardapp.com" },
-  tension: { web: "https://tensionboardapp2.com", api: "https://api.tensionboardapp2.com" },
+export const AURORA_HOSTS: Record<AuroraBoard, string> = {
+  kilter: "https://kilterboardapp.com",
+  tension: "https://tensionboardapp2.com",
 };
 
 export const BASE_SYNC_DATE = "1970-01-01 00:00:00.000000";
 
-/** JSON body for `POST /sessions`. */
 export function loginBody(username: string, password: string) {
   return { username, password, tou: "accepted", pp: "accepted", ua: "app" };
 }
 
-/** URL-encoded form body for `POST /sync`: everything since the epoch. */
 export function syncBody(): string {
-  const tables = ["ascents", "bids", "difficulty_grades"];
-  return tables
+  return ["ascents", "bids", "difficulty_grades"]
     .map((t) => `${encodeURIComponent(t)}=${encodeURIComponent(BASE_SYNC_DATE)}`)
     .join("&");
 }
 
 export interface DifficultyGradeRow {
   difficulty: number;
-  /** e.g. "6C+/V5". */
-  boulder_name?: string;
+  boulder_name?: string; // e.g. "6C+/V5"
 }
 
-/** Build a difficulty(int) -> grade-label map from the shared `difficulty_grades` rows. */
 export function buildDifficultyMap(rows: DifficultyGradeRow[] | undefined): Map<number, string> {
   const map = new Map<number, string>();
   for (const r of rows ?? []) {
@@ -48,7 +39,6 @@ export function buildDifficultyMap(rows: DifficultyGradeRow[] | undefined): Map<
   return map;
 }
 
-/** Raw ascent row as returned by `/sync`. */
 export interface AuroraAscent {
   uuid?: string;
   climb_uuid?: string;
@@ -62,7 +52,6 @@ export interface AuroraAscent {
   comment?: string;
 }
 
-/** Map one raw Aurora ascent into a normalized {@link Ascent}. */
 export function auroraAscentToAscent(
   raw: AuroraAscent,
   board: AuroraBoard,
@@ -72,7 +61,7 @@ export function auroraAscentToAscent(
   const grade = gradeFor(raw.difficulty, difficultyMap);
   return {
     board,
-    climbName: "", // climb names require syncing the huge climbs table; not needed for logbooks
+    climbName: "", // names would require syncing the whole climbs table
     date: normalizeDate(raw.climbed_at),
     grade,
     userGrade: grade,
@@ -92,19 +81,17 @@ function gradeFor(difficulty: number | null | undefined, map: Map<number, string
   return map.get(d) ?? approxV(d);
 }
 
-/** Fallback when the shared grade table is missing: Aurora difficulty tracks V + ~10. */
+// Fallback when the shared grade table is missing: Aurora difficulty tracks V + ~10.
 function approxV(difficulty: number): string | undefined {
   const v = difficulty - 10;
   return v >= 0 ? `V${v}` : undefined;
 }
 
-/** Aurora timestamps look like "2026-05-01 19:30:00"; make them ISO so consumers can sort. */
 function normalizeDate(s: string): string {
   const iso = s.includes("T") ? s : s.replace(" ", "T");
   return iso.endsWith("Z") || /[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`;
 }
 
-/** Map a raw `/sync` response into normalized ascents, dropping unlisted / non-ascent rows. */
 export function auroraSyncToAscents(
   board: AuroraBoard,
   resp: { ascents?: AuroraAscent[]; difficulty_grades?: DifficultyGradeRow[] },
@@ -119,19 +106,14 @@ export function auroraSyncToAscents(
   return out;
 }
 
-/**
- * Live connect + sync for an Aurora board. Pass credentials (exchanged for a token) or an existing
- * `{ token }` to re-sync. Throws {@link BoardError} on any known failure.
- */
 export async function connectAurora(
   board: AuroraBoard,
   auth: BoardAuth,
   opts: ConnectOptions = {},
 ): Promise<ConnectResult> {
   const doFetch = opts.fetch ?? fetch;
-  const host = AURORA_HOSTS[board].api;
+  const host = AURORA_HOSTS[board];
 
-  // 1. Obtain a session token.
   let token: string | undefined = "token" in auth ? auth.token : undefined;
   if (!token) {
     const { username, password } = auth as { username?: string; password?: string };
@@ -164,7 +146,6 @@ export async function connectAurora(
     if (!token) throw new BoardError("unexpected-response", "no session token returned", board);
   }
 
-  // 2. Sync ascents + the shared grade table.
   let res: Response;
   try {
     res = await doFetch(`${host}/sync`, {

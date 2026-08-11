@@ -1,14 +1,8 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { handleBoardRequest, type BoardRequestBody } from "./index.js";
 
-/**
- * A zero-dependency Node HTTP server exposing:
- *   POST /:board   body { username, password } | { token }   -> { token, ascents }
- *   GET  /health   -> { ok: true }
- *
- * This is a convenience for standing the API up quickly; for production embed
- * {@link handleBoardRequest} in your own framework instead.
- */
+// A dependency-free Node server for standing the API up quickly: POST /:board and GET /health. For
+// production, embed handleBoardRequest in your own framework instead.
 export function createBoardServer(opts: { cors?: boolean } = {}): Server {
   return createServer((req, res) => void route(req, res, opts));
 }

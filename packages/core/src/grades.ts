@@ -1,12 +1,5 @@
-/**
- * Grade parsing shared by all boards. These boards display either the V-scale ("V5") or Font
- * ("6C+", "7A"); Aurora also shows compound labels like "6C+/V5". Everything here is pure.
- */
-
-/**
- * Parse a displayed grade to a V-scale integer. Handles a V token anywhere (covers "V5" and the
- * compound "6C+/V5") and plain Font grades ("6C+", "7A"). Returns undefined if unparseable.
- */
+// Boards display either the V-scale ("V5"), Font ("6C+", "7A"), or a compound "6C+/V5". Parses any
+// of them to a V-scale integer, preferring an explicit V token when present.
 export function parseVGrade(grade: string | undefined | null): number | undefined {
   if (!grade) return undefined;
   const g = grade.trim().toUpperCase();
@@ -17,7 +10,6 @@ export function parseVGrade(grade: string | undefined | null): number | undefine
   return undefined;
 }
 
-/** Coarse Font -> V map across the boulder grades these boards cover. */
 export function fontToV(num: number, letter?: string, plus?: string): number | undefined {
   const table: Record<string, number> = {
     "4": 0, "5": 1, "5+": 2,
