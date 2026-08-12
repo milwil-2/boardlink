@@ -1,6 +1,6 @@
 import type { Ascent, BoardAuth, ConnectOptions, ConnectResult } from "./types.js";
 import { BoardError } from "./types.js";
-import { parseVGrade } from "./grades.js";
+import { DIFFICULTY_GRADES, gradeForDifficulty, type DifficultyGrade } from "./difficulty.js";
 import { addSetCookies, jarToHeader, type CookieJar } from "./http.js";
 
 // The Kilter app's backend (kiltergrips.com) since Kilter left Aurora in 2025. See
@@ -163,53 +163,12 @@ async function tokenRequest(doFetch: typeof fetch, body: Record<string, string>)
   return { accessToken: json.access_token, refreshToken: json.refresh_token, expiresIn: json.expires_in };
 }
 
-// A difficulty across every scale the board reports.
-export interface KilterGrade {
-  /** Compound label as the app shows it, e.g. "7C/V9". */
-  label: string;
-  /** Fontainebleau boulder scale, e.g. "7C". */
-  font: string;
-  /** Hueco V-scale label, e.g. "V9". */
-  vScale: string;
-  /** V-scale as an integer, e.g. 9. */
-  vGrade: number;
-  /** French sport scale, e.g. "8b". */
-  french: string;
-  /** Yosemite Decimal System, e.g. "5.13d". */
-  yds: string;
-}
-
-// Kilter's static difficulty_grades reference table (ids 1-39), compact source rows of
-// [id, "font/V", french, yds]. Bundled rather than fetched: it changes about as often as the grade
-// scales themselves. Font and V-scale are split from the compound label below.
-const KILTER_GRADE_ROWS: ReadonlyArray<readonly [number, string, string, string]> = [
-  [1, "1A/V0", "2b", "5.1"], [2, "1B/V0", "2c", "5.2"], [3, "1C/V0", "3a", "5.3"],
-  [4, "2A/V0", "3b", "5.3"], [5, "2B/V0", "3c", "5.4"], [6, "2C/V0", "4a", "5.5"],
-  [7, "3A/V0", "4b", "5.6"], [8, "3B/V0", "4c", "5.7"], [9, "3C/V0", "5a", "5.8"],
-  [10, "4A/V0", "5b", "5.9"], [11, "4B/V0", "5c", "5.10a"], [12, "4C/V0", "6a", "5.10b"],
-  [13, "5A/V1", "6a+", "5.10c"], [14, "5B/V1", "6b", "5.10d"], [15, "5C/V2", "6b+", "5.11a"],
-  [16, "6A/V3", "6c", "5.11b"], [17, "6A+/V3", "6c+", "5.11c"], [18, "6B/V4", "7a", "5.11d"],
-  [19, "6B+/V4", "7a+", "5.12a"], [20, "6C/V5", "7b", "5.12b"], [21, "6C+/V5", "7b+", "5.12c"],
-  [22, "7A/V6", "7c", "5.12d"], [23, "7A+/V7", "7c+", "5.13a"], [24, "7B/V8", "8a", "5.13b"],
-  [25, "7B+/V8", "8a+", "5.13c"], [26, "7C/V9", "8b", "5.13d"], [27, "7C+/V10", "8b+", "5.14a"],
-  [28, "8A/V11", "8c", "5.14b"], [29, "8A+/V12", "8c+", "5.14c"], [30, "8B/V13", "9a", "5.14d"],
-  [31, "8B+/V14", "9a+", "5.15a"], [32, "8C/V15", "9b", "5.15b"], [33, "8C+/V16", "9b+", "5.15c"],
-  [34, "9A/V17", "9c", "5.15d"], [35, "9A+/V18", "9c+", "5.16a"], [36, "9B/V19", "10a", "5.16b"],
-  [37, "9B+/V20", "10a+", "5.16c"], [38, "9C/V21", "10b", "5.16d"], [39, "9C+/V22", "10b+", "5.17a"],
-];
-
-// difficulty_grade_id -> the grade on every scale, so callers can pick Font, V, French, or YDS.
-export const KILTER_DIFFICULTY_GRADES: Readonly<Record<number, KilterGrade>> = Object.fromEntries(
-  KILTER_GRADE_ROWS.map(([id, label, french, yds]) => {
-    const [font, vScale] = label.split("/") as [string, string];
-    return [id, { label, font, vScale, vGrade: parseVGrade(vScale) ?? 0, french, yds }];
-  }),
-);
+// Kilter's currentDifficultyId indexes the shared Aurora difficulty table (see difficulty.ts).
+export type KilterGrade = DifficultyGrade;
+export const KILTER_DIFFICULTY_GRADES = DIFFICULTY_GRADES;
 
 // Resolves a difficulty_grade_id to its grade on every scale, or undefined if unknown.
-export function kilterGrade(difficultyId: number | null | undefined): KilterGrade | undefined {
-  return difficultyId == null ? undefined : KILTER_DIFFICULTY_GRADES[difficultyId];
-}
+export const kilterGrade = gradeForDifficulty;
 
 // One entry from GET /api/logs, the authenticated user's logbook. The server joins the climb name
 // and its current consensus difficulty in, so no catalog lookup is needed. Extra fields are kept.

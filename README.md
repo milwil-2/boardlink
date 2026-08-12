@@ -20,6 +20,11 @@ use, so you can get *your own* climbing data out of them. It's the only library 
 
 The reverse-engineered new-Kilter API is documented in [docs/kilter-new-api.md](docs/kilter-new-api.md).
 
+Per-board notes:
+- **Tension** logs in with your Aurora **username**, not your email. Its sync returns grades, dates,
+  angles, and tries but not climb names (resolving those needs the full climbs table); `climbName`
+  is left empty. Kilter and MoonBoard return names.
+
 ## Repo layout
 
 ```

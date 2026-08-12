@@ -120,6 +120,7 @@ export function moonEntryToAscent(entry: MoonEntry): Ascent | null {
     isMirror: false,
     isRepeat: false,
     comment: entry.Comment?.trim() || undefined,
+    raw: entry as unknown as Record<string, unknown>,
   };
 }
 

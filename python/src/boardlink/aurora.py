@@ -6,12 +6,17 @@ from urllib.parse import quote
 
 import requests
 
-from .grades import parse_v_grade
+from .difficulty import grade_for_difficulty
 from .types import Ascent, BoardError, ConnectResult
 
-# Tension still runs on Aurora: POST /sessions for a token, then POST /sync for the logbook.
+# Tension still runs on Aurora: POST /sessions for a token, then POST /sync for the logbook. The sync
+# returns each ascent's integer difficulty but not the grade table, so grades come from the bundled
+# Aurora difficulty table (see difficulty.py).
 TENSION_WEB = "https://tensionboardapp2.com"
 _BASE_SYNC_DATE = "1970-01-01 00:00:00.000000"
+# The /sync route is gated on a native-app User-Agent; without it the server 404s. The %20 is a
+# literal, from the URL-encoded "Kilter Board" app name; the app sends this same string for Tension.
+_AURORA_UA = "Kilter%20Board/202 CFNetwork/1568.100.1 Darwin/24.0.0"
 
 
 def connect_tension(username: Optional[str] = None, password: Optional[str] = None, *, token: Optional[str] = None) -> ConnectResult:
@@ -27,13 +32,14 @@ def _login(board, host, username, password) -> str:
         r = requests.post(
             f"{host}/sessions",
             json={"username": username, "password": password, "tou": "accepted", "pp": "accepted", "ua": "app"},
-            headers={"accept": "application/json"},
+            headers={"accept": "application/json", "User-Agent": _AURORA_UA},
             timeout=30,
         )
     except requests.RequestException as e:
         raise BoardError("unreachable", "could not reach the board service", board) from e
     if r.status_code in (401, 422):
-        raise BoardError("bad-credentials", "Incorrect board email or password.", board)
+        # Aurora authenticates by username, not email - a common cause of this rejection.
+        raise BoardError("bad-credentials", "Incorrect username or password.", board)
     if not r.ok:
         raise BoardError("unexpected-response", f"login failed ({r.status_code})", board)
     body = r.json()
@@ -46,7 +52,7 @@ def _login(board, host, username, password) -> str:
 
 
 def _sync(board, host, token) -> dict:
-    body = "&".join(f"{t}={quote(_BASE_SYNC_DATE)}" for t in ("ascents", "bids", "difficulty_grades"))
+    body = f"ascents={quote(_BASE_SYNC_DATE)}"
     try:
         r = requests.post(
             f"{host}/sync",
@@ -54,6 +60,7 @@ def _sync(board, host, token) -> dict:
             headers={
                 "content-type": "application/x-www-form-urlencoded",
                 "accept": "application/json",
+                "User-Agent": _AURORA_UA,
                 "Cookie": f"token={token}",
             },
             timeout=60,
@@ -67,20 +74,6 @@ def _sync(board, host, token) -> dict:
     return r.json()
 
 
-def _difficulty_map(rows) -> dict:
-    out = {}
-    for row in rows or []:
-        name = row.get("boulder_name")
-        if name:
-            out[round(row.get("difficulty", 0))] = name
-    return out
-
-
-def _approx_v(difficulty: int) -> Optional[str]:
-    v = difficulty - 10
-    return f"V{v}" if v >= 0 else None
-
-
 def _normalize_date(s: str) -> str:
     iso = s if "T" in s else s.replace(" ", "T", 1)
     if iso.endswith("Z") or re.search(r"[+-]\d\d:?\d\d$", iso):
@@ -88,35 +81,34 @@ def _normalize_date(s: str) -> str:
     return iso + "Z"
 
 
-def _to_ascent(board, raw, difficulty_map) -> Optional[Ascent]:
+def _to_ascent(board, raw) -> Optional[Ascent]:
     climbed = raw.get("climbed_at")
     if not climbed:
         return None
-    grade = None
-    difficulty = raw.get("difficulty")
-    if difficulty is not None:
-        d = round(difficulty)
-        grade = difficulty_map.get(d) or _approx_v(d)
+    grade_info = grade_for_difficulty(raw.get("difficulty"))
+    grade = grade_info["label"] if grade_info else None
+    # attempt_id, when set, is the tries count (1 = flash); otherwise a send took bid_count fails + 1.
+    tries = raw.get("attempt_id") or (raw.get("bid_count") or 0) + 1
     return Ascent(
         board=board,
-        climb_name="",
+        climb_name="",  # Aurora's sync omits names; resolving them needs the climbs table (see docs)
         date=_normalize_date(climbed),
         grade=grade,
         user_grade=grade,
-        v_grade=parse_v_grade(grade),
-        tries=(raw.get("bid_count") or 0) + 1,
+        v_grade=grade_info["v_grade"] if grade_info else None,
+        tries=tries,
         angle=raw.get("angle"),
         is_mirror=bool(raw.get("is_mirror")),
+        raw=raw,
     )
 
 
 def _sync_to_ascents(board, resp) -> list:
-    difficulty_map = _difficulty_map(resp.get("difficulty_grades"))
     out = []
     for raw in resp.get("ascents") or []:
         if raw.get("is_listed") is False:
             continue
-        a = _to_ascent(board, raw, difficulty_map)
+        a = _to_ascent(board, raw)
         if a:
             out.append(a)
     return out
