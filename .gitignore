@@ -3,9 +3,19 @@ dist/
 *.tsbuildinfo
 .DS_Store
 *.log
+board-export.json
+
+# Secrets, credentials & local session/context — never commit
 .env
 .env.*
-board-export.json
+*.env
+creds*
+*.pem
+*.key
+secrets/
+.claude/
+.mitmproxy/
+wg-*.conf
 
 # capture output (may contain semi-sensitive data even when redacted)
 tools/capture/
