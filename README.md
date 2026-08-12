@@ -14,7 +14,7 @@ use, so you can get *your own* climbing data out of them. It's the only library 
 
 | Board | Backend | Auth |
 | --- | --- | --- |
-| Kilter | kiltergrips.com (Keycloak + PowerSync) | OAuth2 + PKCE, refresh token |
+| Kilter | kiltergrips.com (Keycloak + REST) | OAuth2 + PKCE, refresh token |
 | Tension | Aurora (tensionboardapp2.com) | session token |
 | MoonBoard | moonboard.com | cookie / CSRF session |
 
@@ -105,8 +105,8 @@ Please keep it that way:
 
 - Use it with your own account and your own data.
 - Don't scrape other users' data or republish a board's proprietary climb database.
-- Be gentle: cache results, don't hammer the servers, and prefer `resolveGrades: false` (Kilter) when
-  you only need the raw logbook.
+- Be gentle: cache results and don't hammer the servers — a logbook sync is a single request per
+  board, so there's no need to poll it in a loop.
 - Automated access may be against a board's terms of service; that's on you to check.
 
 ## License

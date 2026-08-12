@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 BoardSystem = Literal["kilter", "tension", "moonboard"]
 
@@ -21,6 +21,9 @@ class Ascent:
     is_mirror: bool = False
     is_repeat: bool = False
     comment: Optional[str] = None
+    # The untouched source record this ascent was mapped from; escape hatch for board-specific
+    # fields the normalized shape doesn't cover.
+    raw: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> dict:
         return asdict(self)

@@ -24,7 +24,7 @@ except BoardError as e:
     print(e.code)  # e.g. "bad-credentials"
 ```
 
-Kilter uses the new kiltergrips.com backend (Keycloak auth + PowerSync); Tension uses the Aurora
+Kilter uses the new kiltergrips.com backend (Keycloak auth + a REST logbook); Tension uses the Aurora
 API; MoonBoard uses its own cookie/CSRF session. A password is used once to authenticate and is
 never stored — persist only the returned token.
 

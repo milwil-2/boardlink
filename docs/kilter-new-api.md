@@ -11,7 +11,7 @@ Company backend domain: **`kiltergrips.com`**. Three services:
 |---|---|
 | `idp.kiltergrips.com` | Keycloak identity provider (auth) |
 | `portal.kiltergrips.com` | REST API (`/api/...`) |
-| `sync1.kiltergrips.com` | PowerSync streaming sync (bulk data incl. logbook) |
+| `sync1.kiltergrips.com` | PowerSync streaming sync (bulk board data: holds/walls/geometry) |
 
 All `portal` and `sync` calls send `Authorization: Bearer <access_token>` from Keycloak.
 
@@ -70,6 +70,21 @@ Many list endpoints accept `?top20=true` (a 20-item preview) — full/paginated 
 }
 ```
 
+### Read the logbook (fully understood — this is the ascent read path)
+`GET /api/logs` → `200`, a JSON array of the **authenticated** user's ascents. No id in the path: the
+bearer token identifies the user. The server joins the climb name and current difficulty in, so no
+catalog lookup is needed. Item fields:
+```
+logUuid, climbUuid, userUuid, gymUuid, wallUuid, productLayoutUuid, angle,
+flashed (bool), topped (bool), attempts (int), createdAt (ISO), climbName,
+currentDifficultyId (int -> difficulty_grades id), climbRating? { difficultyGradeId, rating, ... }
+```
+`climbRating`, when present, is the user's own grade/quality submission for that climb.
+
+Note the sibling form: `GET /api/logs/{userId}` returns **another** user's *public* logs (by numeric
+id). It returns `[]` for a uuid or username, and for the owner — it is not the way to read your own
+logbook. Use the bare `GET /api/logs`.
+
 ### Climb catalog
 `GET /api/climbs/?top20=true` → `{ items: [...], total }`. Item fields:
 ```
@@ -122,9 +137,28 @@ Request JSON:
   "app_metadata": {}
 }
 ```
-Response: a BSON/ndjson stream of bucket operations (PUT/REMOVE rows) + a checkpoint. With
-`after: "0"` on every bucket you get a **full initial sync** (everything); with a prior op id you get
-only the delta. It is a long-lived streaming connection (stays open for live updates).
+Response: a BSON/ndjson stream of bucket operations (PUT/REMOVE rows) + a `checkpoint`, the bucket
+data, then `checkpoint_complete`. It is a long-lived connection (stays open for live updates), so
+read until `checkpoint_complete` and stop. The `buckets` array is **resumption state, not a filter**:
+the server derives the actual bucket set from `streams.include_defaults`, so requesting fewer buckets
+changes nothing. Use `include_defaults: true` and a single `{ "name": "global[]", "after": "0" }` to
+pull everything.
+
+A full sync (`after: "0"`) carries these object types (row counts from one account):
+```
+global[]         -> difficulty_grades (39), product_layouts, mounting_holes, logs (the user's), ...
+global_gyms[]    -> gyms, walls, ...
+global_climbs[]  -> climb_beta_links, hold_placements, holds   (hold GEOMETRY, ~36k rows)
+```
+Two things this settles:
+- **There is no climb catalog (names/grades) in PowerSync.** `global_climbs[]` is hold geometry, not
+  climb metadata. Climb names come from REST (`GET /api/logs` for the logbook; `/api/climbs/?name=`
+  for search). There is no `GET /api/climbs/{uuid}` by-uuid endpoint.
+- **The synced `logs` rows are bare** (`climb_uuid, angle, flashed, topped, attempts, created_at` —
+  no name, no grade). The enriched, name+grade-joined logbook is the REST `GET /api/logs` above.
+
+So PowerSync is only needed for raw board data (holds/walls/geometry, e.g. to render a climb); the
+ascent read path is pure REST.
 
 ### Write checkpoint
 `GET /write-checkpoint2.json?client_id=<uuid>` → `{ "data": { "write_checkpoint": "<n>" } }`
@@ -132,11 +166,31 @@ Used after a write to know when the server has synced the change back.
 
 ---
 
-## Open questions / TODO to finish the read path
-1. **Full bucket list** — un-truncate the `/sync/stream` request to see all 5 bucket names; identify
-   which holds the user's logs.
-2. **Logbook read** — is there a REST `GET /api/v2/logs` (or `/api/logs/user`), or do the user's
-   ascents come only from a PowerSync bucket? Needs a from-scratch sync capture (`after:"0"`) or a
-   token test against a candidate GET.
-3. **Difficulty → grade** mapping table for the new app (confirm it matches the Aurora scale).
-4. **Pagination** for `/api/climbs/`, `/api/circuits/`, `/api/users/find` beyond `top20`.
+## Difficulty → grade table
+
+`currentDifficultyId` / `difficultyGradeId` index the static `difficulty_grades` table (ids 1–39,
+synced in the `global[]` bucket). It is the classic Aurora scale, so each id maps across systems.
+boardlink bundles this as a constant (`KILTER_DIFFICULTY_GRADES`) rather than syncing it.
+
+| id | Font/V | French | YDS | | id | Font/V | French | YDS |
+|---|---|---|---|---|---|---|---|---|
+| 10 | 4A/V0 | 5b | 5.9 | | 25 | 7B+/V8 | 8a+ | 5.13c |
+| 13 | 5A/V1 | 6a+ | 5.10c | | 26 | 7C/V9 | 8b | 5.13d |
+| 15 | 5C/V2 | 6b+ | 5.11a | | 27 | 7C+/V10 | 8b+ | 5.14a |
+| 16 | 6A/V3 | 6c | 5.11b | | 28 | 8A/V11 | 8c | 5.14b |
+| 18 | 6B/V4 | 7a | 5.11d | | 30 | 8B/V13 | 9a | 5.14d |
+| 20 | 6C/V5 | 7b | 5.12b | | 32 | 8C/V15 | 9b | 5.15b |
+| 22 | 7A/V6 | 7c | 5.12d | | 34 | 9A/V17 | 9c | 5.15d |
+| 23 | 7A+/V7 | 7c+ | 5.13a | | 39 | 9C+/V22 | 10b+ | 5.17a |
+
+(Abridged; ids 1–39 are contiguous. Full table in `packages/core/src/kilter.ts`.)
+
+## Resolved / remaining
+
+- **Read path — done.** The logbook is `GET /api/logs` (enriched with name + `currentDifficultyId`);
+  grades come from the bundled difficulty table. No PowerSync needed for ascents.
+- **PowerSync buckets — done.** `buckets` is resumption state, not a selector; `global_climbs[]` is
+  hold geometry, not climb metadata; the user's `logs` sync bare (no name/grade).
+- **Difficulty mapping — done.** Table above.
+- **Still open (not needed for boardlink):** pagination for `/api/climbs/`, `/api/circuits/`,
+  `/api/users/find` beyond `top20`; the `climbConcat` hold-role encoding for rendering climbs.

@@ -4,8 +4,8 @@ import { parseVGrade } from "./grades.js";
 import { addSetCookies, jarToHeader, type CookieJar } from "./http.js";
 
 // The Kilter app's backend (kiltergrips.com) since Kilter left Aurora in 2025. See
-// docs/kilter-new-api.md. Auth is Keycloak (OIDC + PKCE); the logbook syncs over PowerSync; a few
-// bits (per-climb grades) come from the portal REST API.
+// docs/kilter-new-api.md. Auth is Keycloak (OIDC + PKCE); the logbook comes from the portal REST API
+// (GET /api/logs), enriched by the server with climb names and grades.
 
 export const KILTER_HOSTS = {
   idp: "https://idp.kiltergrips.com",
@@ -163,6 +163,123 @@ async function tokenRequest(doFetch: typeof fetch, body: Record<string, string>)
   return { accessToken: json.access_token, refreshToken: json.refresh_token, expiresIn: json.expires_in };
 }
 
+// A difficulty across every scale the board reports.
+export interface KilterGrade {
+  /** Compound label as the app shows it, e.g. "7C/V9". */
+  label: string;
+  /** Fontainebleau boulder scale, e.g. "7C". */
+  font: string;
+  /** Hueco V-scale label, e.g. "V9". */
+  vScale: string;
+  /** V-scale as an integer, e.g. 9. */
+  vGrade: number;
+  /** French sport scale, e.g. "8b". */
+  french: string;
+  /** Yosemite Decimal System, e.g. "5.13d". */
+  yds: string;
+}
+
+// Kilter's static difficulty_grades reference table (ids 1-39), compact source rows of
+// [id, "font/V", french, yds]. Bundled rather than fetched: it changes about as often as the grade
+// scales themselves. Font and V-scale are split from the compound label below.
+const KILTER_GRADE_ROWS: ReadonlyArray<readonly [number, string, string, string]> = [
+  [1, "1A/V0", "2b", "5.1"], [2, "1B/V0", "2c", "5.2"], [3, "1C/V0", "3a", "5.3"],
+  [4, "2A/V0", "3b", "5.3"], [5, "2B/V0", "3c", "5.4"], [6, "2C/V0", "4a", "5.5"],
+  [7, "3A/V0", "4b", "5.6"], [8, "3B/V0", "4c", "5.7"], [9, "3C/V0", "5a", "5.8"],
+  [10, "4A/V0", "5b", "5.9"], [11, "4B/V0", "5c", "5.10a"], [12, "4C/V0", "6a", "5.10b"],
+  [13, "5A/V1", "6a+", "5.10c"], [14, "5B/V1", "6b", "5.10d"], [15, "5C/V2", "6b+", "5.11a"],
+  [16, "6A/V3", "6c", "5.11b"], [17, "6A+/V3", "6c+", "5.11c"], [18, "6B/V4", "7a", "5.11d"],
+  [19, "6B+/V4", "7a+", "5.12a"], [20, "6C/V5", "7b", "5.12b"], [21, "6C+/V5", "7b+", "5.12c"],
+  [22, "7A/V6", "7c", "5.12d"], [23, "7A+/V7", "7c+", "5.13a"], [24, "7B/V8", "8a", "5.13b"],
+  [25, "7B+/V8", "8a+", "5.13c"], [26, "7C/V9", "8b", "5.13d"], [27, "7C+/V10", "8b+", "5.14a"],
+  [28, "8A/V11", "8c", "5.14b"], [29, "8A+/V12", "8c+", "5.14c"], [30, "8B/V13", "9a", "5.14d"],
+  [31, "8B+/V14", "9a+", "5.15a"], [32, "8C/V15", "9b", "5.15b"], [33, "8C+/V16", "9b+", "5.15c"],
+  [34, "9A/V17", "9c", "5.15d"], [35, "9A+/V18", "9c+", "5.16a"], [36, "9B/V19", "10a", "5.16b"],
+  [37, "9B+/V20", "10a+", "5.16c"], [38, "9C/V21", "10b", "5.16d"], [39, "9C+/V22", "10b+", "5.17a"],
+];
+
+// difficulty_grade_id -> the grade on every scale, so callers can pick Font, V, French, or YDS.
+export const KILTER_DIFFICULTY_GRADES: Readonly<Record<number, KilterGrade>> = Object.fromEntries(
+  KILTER_GRADE_ROWS.map(([id, label, french, yds]) => {
+    const [font, vScale] = label.split("/") as [string, string];
+    return [id, { label, font, vScale, vGrade: parseVGrade(vScale) ?? 0, french, yds }];
+  }),
+);
+
+// Resolves a difficulty_grade_id to its grade on every scale, or undefined if unknown.
+export function kilterGrade(difficultyId: number | null | undefined): KilterGrade | undefined {
+  return difficultyId == null ? undefined : KILTER_DIFFICULTY_GRADES[difficultyId];
+}
+
+// One entry from GET /api/logs, the authenticated user's logbook. The server joins the climb name
+// and its current consensus difficulty in, so no catalog lookup is needed. Extra fields are kept.
+export interface KilterLog {
+  logUuid: string;
+  climbUuid: string;
+  climbName: string;
+  angle: number;
+  attempts: number;
+  flashed: boolean;
+  topped: boolean;
+  createdAt: string;
+  currentDifficultyId?: number;
+  /** The user's own grade suggestion for this climb, when they submitted one. */
+  climbRating?: { difficultyGradeId?: number } & Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+// Fetches the authenticated user's logbook. The bearer token identifies the user; there is no id in
+// the path (the /api/logs/{id} form is for viewing another user's public logs).
+export async function kilterFetchLogbook(accessToken: string, opts: ConnectOptions = {}): Promise<KilterLog[]> {
+  const doFetch = opts.fetch ?? fetch;
+  let res: Response;
+  try {
+    res = await doFetch(`${KILTER_HOSTS.api}/api/logs`, {
+      headers: { Authorization: `Bearer ${accessToken}`, "User-Agent": APP_UA, Accept: "application/json" },
+    });
+  } catch {
+    throw new BoardError("unreachable", "could not reach Kilter logbook", "kilter");
+  }
+  if (res.status === 401) throw new BoardError("session-expired", "Kilter session expired", "kilter");
+  if (!res.ok) throw new BoardError("unexpected-response", `logbook request failed (${res.status})`, "kilter");
+  const body = await res.json().catch(() => null);
+  return Array.isArray(body) ? (body as KilterLog[]) : [];
+}
+
+// Maps one logbook entry to a normalized ascent. The consensus grade fills {@link Ascent.grade};
+// the user's own suggestion, when present and different, fills {@link Ascent.userGrade}.
+export function kilterLogToAscent(log: KilterLog): Ascent {
+  const consensus = kilterGrade(log.currentDifficultyId);
+  const ownId = log.climbRating?.difficultyGradeId;
+  const own = ownId != null ? KILTER_DIFFICULTY_GRADES[ownId] : undefined;
+  return {
+    board: "kilter",
+    climbName: log.climbName ?? "",
+    date: log.createdAt,
+    grade: consensus?.label,
+    userGrade: own && own.label !== consensus?.label ? own.label : undefined,
+    vGrade: consensus?.vGrade,
+    tries: typeof log.attempts === "number" ? log.attempts : log.flashed ? 1 : undefined,
+    angle: typeof log.angle === "number" ? log.angle : undefined,
+    raw: log,
+  };
+}
+
+// Pass credentials or a stored refresh token. Returns the (rotated) refresh token to store and the
+// normalized logbook. Only topped ascents are included; raw attempt logs are skipped.
+export async function connectKilter(auth: BoardAuth, opts: ConnectOptions = {}): Promise<ConnectResult> {
+  const tokens =
+    "token" in auth ? await kilterRefresh(auth.token, opts) : await kilterLogin(auth.username, auth.password, opts);
+  const logs = await kilterFetchLogbook(tokens.accessToken, opts);
+  const ascents = logs.filter((l) => l.topped !== false).map(kilterLogToAscent);
+  return { board: "kilter", token: tokens.refreshToken, ascents };
+}
+
+// --- Advanced: raw board data over PowerSync ---------------------------------------------------
+// The logbook above needs only the REST API. The app also streams the full board dataset (holds,
+// walls, gyms, difficulty grades, hold geometry) over PowerSync; kilterPowersyncPull exposes that
+// raw, for callers that want to render climbs or inspect the catalog. It is not needed for ascents.
+
 interface SyncData {
   bucket: string;
   data: { op_id: string; op: string; object_type?: string; object_id?: string; data?: string | object }[];
@@ -176,11 +293,7 @@ export type KilterTables = Record<string, Record<string, Record<string, unknown>
 export async function kilterPowersyncPull(accessToken: string, opts: ConnectOptions = {}): Promise<KilterTables> {
   const doFetch = opts.fetch ?? fetch;
   const body = {
-    buckets: [
-      { name: "global[]", after: "0" },
-      { name: "global_climbs[]", after: "0" },
-      { name: "global_gyms[]", after: "0" },
-    ],
+    buckets: [{ name: "global[]", after: "0" }],
     include_checksum: true,
     raw_data: true,
     binary_data: false,
@@ -219,7 +332,7 @@ export async function kilterPowersyncPull(accessToken: string, opts: ConnectOpti
       continue;
     }
     if (msg.data) applyBucketData(tables, msg.data as SyncData);
-    if ("checkpoint_complete" in msg || "checkpoint_diff" in msg) break;
+    if ("checkpoint_complete" in msg) break;
   }
   return tables;
 }
@@ -273,151 +386,4 @@ function randomUuid(): string {
   b[8] = (b[8]! & 0x3f) | 0x80;
   const h = [...b].map((x) => x.toString(16).padStart(2, "0"));
   return `${h.slice(0, 4).join("")}-${h.slice(4, 6).join("")}-${h.slice(6, 8).join("")}-${h.slice(8, 10).join("")}-${h.slice(10, 16).join("")}`;
-}
-
-function pick(row: Record<string, unknown>, ...keys: string[]): unknown {
-  for (const k of keys) if (row[k] != null && row[k] !== "") return row[k];
-  return undefined;
-}
-
-function num(v: unknown): number | undefined {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : undefined;
-}
-
-function findTable(tables: KilterTables, ...hints: string[]): Record<string, Record<string, unknown>> | undefined {
-  const names = Object.keys(tables);
-  for (const hint of hints) {
-    const exact = names.find((n) => n.toLowerCase() === hint);
-    if (exact) return tables[exact];
-  }
-  for (const hint of hints) {
-    const partial = names.find((n) => n.toLowerCase().includes(hint));
-    if (partial) return tables[partial];
-  }
-  return undefined;
-}
-
-// Kilter timestamps look like "2026-08-10 03:24:49.449462Z"; the space needs to become a T.
-function normalizeDate(s: string): string {
-  return s.includes("T") ? s : s.replace(" ", "T");
-}
-
-export interface GradeInfo {
-  grade: string;
-  vGrade?: number;
-}
-
-// difficulty_grade_id -> grade label + V number, from the synced difficulty_grades table.
-export function buildKilterGradeMap(tables: KilterTables): Map<number, GradeInfo> {
-  const map = new Map<number, GradeInfo>();
-  for (const g of Object.values(findTable(tables, "difficulty_grades", "grades") ?? {})) {
-    const id = num(pick(g, "difficulty_grade_id", "id"));
-    if (id == null) continue;
-    const label = String(pick(g, "boulder_difficulty", "v_scale", "font_scale") ?? "");
-    map.set(id, { grade: label, vGrade: parseVGrade(String(pick(g, "v_scale", "boulder_difficulty") ?? "")) });
-  }
-  return map;
-}
-
-// A climb's consensus difficulty is the rounded mean of its community difficultyGradeId ratings.
-export function aggregateDifficultyGradeId(ratings: Array<Record<string, unknown>>): number | undefined {
-  const ids = ratings
-    .map((r) => num(pick(r, "difficultyGradeId", "difficulty_grade_id")))
-    .filter((n): n is number => n != null && n > 0);
-  if (!ids.length) return undefined;
-  return Math.round(ids.reduce((a, b) => a + b, 0) / ids.length);
-}
-
-// Builds ascents from the logs table, keeping only sends. The climb catalog isn't synced, so grades
-// are resolved separately (see connectKilter); a climbs table is used for the name only if present.
-export function kilterTablesToAscents(tables: KilterTables, gradeMap?: Map<number, GradeInfo>): Ascent[] {
-  const logs = findTable(tables, "logs", "log", "ascents", "user_logs");
-  if (!logs) return [];
-  const climbs = findTable(tables, "climbs", "global_climbs", "climb");
-  const grades = gradeMap ?? buildKilterGradeMap(tables);
-
-  const out: Ascent[] = [];
-  for (const log of Object.values(logs)) {
-    if (num(pick(log, "topped")) === 0) continue;
-    const date = String(pick(log, "created_at", "createdAt", "climbed_at", "date") ?? "");
-    if (!date) continue;
-    const climb = climbs?.[String(pick(log, "climb_uuid", "climbUuid", "climb_id") ?? "")];
-    const diffId = num(pick(climb ?? {}, "officialKilterDifficulty", "currentDifficultyId", "difficulty_grade_id"));
-    const info = diffId != null ? grades.get(diffId) : undefined;
-    out.push({
-      board: "kilter",
-      climbName: String(pick(climb ?? {}, "name") ?? ""),
-      date: normalizeDate(date),
-      grade: info?.grade,
-      userGrade: info?.grade,
-      vGrade: info?.vGrade,
-      tries: num(pick(log, "attempts", "tries")) ?? 1,
-      angle: num(pick(log, "angle")),
-      isBenchmark: false,
-      isMirror: Boolean(pick(log, "is_mirror", "isMirror") ?? false),
-      isRepeat: Boolean(pick(log, "is_repeat", "isRepeat") ?? false),
-    });
-  }
-  return out;
-}
-
-const MAX_ENRICHED_CLIMBS = 500;
-
-// Resolves each unique climb's grade from the rating endpoint (the catalog isn't synced) and writes
-// it back onto the matching ascents. Best-effort: a climb that fails to resolve is left grade-less.
-async function enrichKilterGrades(
-  ascents: Ascent[],
-  logs: Array<Record<string, unknown>>,
-  gradeMap: Map<number, GradeInfo>,
-  accessToken: string,
-  opts: ConnectOptions,
-): Promise<void> {
-  const doFetch = opts.fetch ?? fetch;
-  const sends = logs.filter(
-    (l) => num(pick(l, "topped")) !== 0 && pick(l, "created_at", "createdAt", "climbed_at", "date"),
-  );
-  const cache = new Map<string, GradeInfo | undefined>();
-  const key = (l: Record<string, unknown>) => `${pick(l, "climb_uuid", "climbUuid") ?? ""}@${num(pick(l, "angle"))}`;
-
-  for (const log of sends) {
-    const uuid = String(pick(log, "climb_uuid", "climbUuid") ?? "");
-    if (!uuid || cache.has(key(log)) || cache.size >= MAX_ENRICHED_CLIMBS) continue;
-    const angle = num(pick(log, "angle"));
-    try {
-      const r = await doFetch(`${KILTER_HOSTS.api}/api/climb-rating/${uuid}?angle=${angle}`, {
-        headers: { Authorization: `Bearer ${accessToken}`, "User-Agent": APP_UA, Accept: "application/json" },
-      });
-      const ratings = r.ok ? ((await r.json().catch(() => [])) as Array<Record<string, unknown>>) : [];
-      const id = aggregateDifficultyGradeId(Array.isArray(ratings) ? ratings : []);
-      cache.set(key(log), id != null ? gradeMap.get(id) : undefined);
-    } catch {
-      cache.set(key(log), undefined);
-    }
-  }
-
-  sends.forEach((log, i) => {
-    const info = cache.get(key(log));
-    const a = ascents[i];
-    if (a && info) {
-      a.grade = info.grade;
-      a.userGrade = info.grade;
-      a.vGrade = info.vGrade;
-    }
-  });
-}
-
-// Pass credentials or a stored refresh token. Returns the (rotated) refresh token to store and the
-// normalized logbook, with grades resolved unless opts.resolveGrades is false.
-export async function connectKilter(auth: BoardAuth, opts: ConnectOptions = {}): Promise<ConnectResult> {
-  const tokens =
-    "token" in auth ? await kilterRefresh(auth.token, opts) : await kilterLogin(auth.username, auth.password, opts);
-  const tables = await kilterPowersyncPull(tokens.accessToken, opts);
-  const gradeMap = buildKilterGradeMap(tables);
-  const ascents = kilterTablesToAscents(tables, gradeMap);
-  if (opts.resolveGrades !== false) {
-    const logs = Object.values(findTable(tables, "logs", "log", "ascents", "user_logs") ?? {});
-    await enrichKilterGrades(ascents, logs, gradeMap, tokens.accessToken, opts);
-  }
-  return { board: "kilter", token: tokens.refreshToken, ascents };
 }

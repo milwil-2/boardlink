@@ -23,7 +23,7 @@ export type BoardAuth = Credentials | { token: SessionToken };
  */
 export interface Ascent {
   board: BoardSystem;
-  /** Problem/climb name. May be empty when the board doesn't return it cheaply (e.g. Aurora). */
+  /** Problem/climb name. Empty only when the board doesn't return it (e.g. Aurora's Tension logs). */
   climbName: string;
   /** ISO date or datetime the climb was logged. */
   date: string;
@@ -41,6 +41,12 @@ export interface Ascent {
   isMirror?: boolean;
   isRepeat?: boolean;
   comment?: string;
+  /**
+   * The untouched source record this ascent was mapped from. Escape hatch for board-specific fields
+   * the normalized shape doesn't cover (e.g. Kilter's gymUuid/wallUuid/topped). Present unless a
+   * board synthesizes ascents from more than one source row.
+   */
+  raw?: Record<string, unknown>;
 }
 
 /** The result of a successful connect/sync: a re-usable token plus the normalized logbook. */
@@ -56,12 +62,6 @@ export interface ConnectOptions {
   fetch?: typeof fetch;
   /** Override the User-Agent header (MoonBoard is picky about it). */
   userAgent?: string;
-  /**
-   * Kilter only: resolve each climb's grade from the community rating endpoint (one request per
-   * unique climb). Default true. Set false for a fast logbook-only pull (dates/angles/tries, no
-   * grades) — useful for large logbooks or to be gentle on Kilter's servers.
-   */
-  resolveGrades?: boolean;
 }
 
 /** A known, user-actionable failure category. */
