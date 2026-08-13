@@ -1,9 +1,10 @@
+import os
 import sqlite3
 
 import pytest
 
 from boardlink import aurora
-from boardlink.db import climb_frames, climb_name, climb_names
+from boardlink.db import climb_frames, climb_name, climb_names, default_db_path, default_names_path
 
 
 def _seed(conn):
@@ -79,3 +80,21 @@ def test_connect_tension_leaves_names_blank_without_opt_in(tmp_path, monkeypatch
     )
     result = aurora.connect_tension(token="tok")
     assert result.ascents[0].climb_name == ""
+
+
+def test_boardlink_cache_dir_overrides_default_paths(tmp_path, monkeypatch):
+    monkeypatch.setenv("BOARDLINK_CACHE_DIR", str(tmp_path))
+    assert default_db_path("tension") == os.path.join(str(tmp_path), "tension.sqlite3")
+    assert default_names_path("tension") == os.path.join(str(tmp_path), "tension-names.json")
+
+
+def test_boardlink_cache_dir_takes_precedence_over_xdg(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "xdg"))
+    monkeypatch.setenv("BOARDLINK_CACHE_DIR", str(tmp_path / "override"))
+    assert default_db_path("tension") == os.path.join(str(tmp_path / "override"), "tension.sqlite3")
+
+
+def test_xdg_cache_home_used_when_no_override(tmp_path, monkeypatch):
+    monkeypatch.delenv("BOARDLINK_CACHE_DIR", raising=False)
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "xdg"))
+    assert default_names_path("tension") == os.path.join(str(tmp_path / "xdg"), "boardlink", "tension-names.json")

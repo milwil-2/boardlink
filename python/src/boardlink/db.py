@@ -30,6 +30,12 @@ PathOrConn = Union[str, sqlite3.Connection]
 
 
 def _cache_dir() -> str:
+    # BOARDLINK_CACHE_DIR lets a deploy point the (global, static) catalog/name caches at a persistent
+    # volume; without it we fall back to the XDG cache, then ~/.cache. Both catalog and name paths flow
+    # through here, so one env var relocates the whole cache.
+    override = os.environ.get("BOARDLINK_CACHE_DIR")
+    if override:
+        return override
     base = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
     return os.path.join(base, "boardlink")
 

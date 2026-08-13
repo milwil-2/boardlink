@@ -1,4 +1,5 @@
 from .aurora import connect_tension
+from .cache import FileNameCache, NameCache
 from .client import connect_board
 from .db import climb_name, climb_names, download_board_db, open_board_db
 from .grades import font_to_v, parse_v_grade
@@ -23,6 +24,8 @@ __all__ = [
     "climb_names",
     "climb_name",
     "resolve_climb_names",
+    "NameCache",
+    "FileNameCache",
     "parse_v_grade",
     "font_to_v",
     "__version__",

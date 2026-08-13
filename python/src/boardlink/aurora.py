@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 from urllib.parse import quote
 
 import requests
@@ -10,6 +10,9 @@ import requests
 from .db import climb_names, default_db_path, download_board_db
 from .difficulty import grade_for_difficulty
 from .types import Ascent, BoardError, ConnectResult
+
+if TYPE_CHECKING:
+    from .cache import NameCache
 
 # Tension still runs on Aurora: POST /sessions for a token, then POST /sync for the logbook. The sync
 # returns each ascent's integer difficulty but not the grade table, so grades come from the bundled
@@ -28,6 +31,7 @@ def connect_tension(
     token: Optional[str] = None,
     db_path: Optional[str] = None,
     resolve_names: Union[bool, str, None] = False,
+    cache: Optional["NameCache"] = None,
 ) -> ConnectResult:
     """Connect to Tension and return the normalized logbook.
 
@@ -41,12 +45,15 @@ def connect_tension(
       is not already cached, then resolves offline.
     - ``resolve_names=False``/``None`` (default) resolves only if a catalog is already cached,
       otherwise names stay blank.
+
+    ``cache`` is an optional :class:`~boardlink.cache.NameCache` used only by the ``web`` path, letting
+    a deploy back resolved names with its own store (Redis/DB/S3) instead of the default JSON file.
     """
     session = token or _login("tension", TENSION_WEB, username, password)
     data = _sync("tension", TENSION_WEB, session)
     ascents = _sync_to_ascents("tension", data)
     if not db_path and resolve_names == "web":
-        _fill_climb_names_web(ascents)
+        _fill_climb_names_web(ascents, cache)
     else:
         path = _catalog_path(db_path, resolve_names)
         if path:
@@ -68,12 +75,12 @@ def _fill_climb_names(ascents, path) -> None:
     _apply_names(ascents, climb_names(path, uuids))
 
 
-def _fill_climb_names_web(ascents) -> None:
+def _fill_climb_names_web(ascents, cache=None) -> None:
     # Lazy import breaks the aurora <-> webnames cycle (webnames reuses TENSION_WEB and _AURORA_UA).
     from .webnames import resolve_climb_names
 
     uuids = [a.raw.get("climb_uuid") for a in ascents if a.raw]
-    _apply_names(ascents, resolve_climb_names("tension", uuids))
+    _apply_names(ascents, resolve_climb_names("tension", uuids, cache=cache))
 
 
 def _apply_names(ascents, names) -> None:

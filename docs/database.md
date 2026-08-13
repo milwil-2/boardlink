@@ -76,6 +76,74 @@ Only the static name cache is stored by the connector; the logbook itself is int
 application. Aurora's incremental `/sync` (a `since`-date parameter, currently pinned to the epoch) is
 the future lever for cheap delta syncs once an app keeps its own logbook store.
 
+## Deploying apps: caching backends
+
+The defaults above assume a CLI/desktop process with a writable `~/.cache`. Two knobs make the caches
+work in a deploy (serverless, multi-worker servers) instead.
+
+Both the name cache and the catalog are **global, static** data — a climb's name and layout are the
+same for every user, not per-account — so one shared backing store safely serves all of an app's
+users. (The per-user logbook is a separate concern; see below.)
+
+### `BOARDLINK_CACHE_DIR` — relocate the file caches
+
+`_cache_dir()` (which both `default_db_path` and `default_names_path` flow through) resolves the base
+directory with this precedence, highest first:
+
+1. an explicit path the caller passes (`db_path=`, `cache_path=`),
+2. `BOARDLINK_CACHE_DIR`,
+3. `XDG_CACHE_HOME/boardlink`,
+4. `~/.cache/boardlink`.
+
+Point `BOARDLINK_CACHE_DIR` at a **persistent, writable volume** so a server keeps the ~87MB catalog
+and the name JSON across restarts instead of re-downloading on every cold start. Serverless functions
+with an ephemeral/read-only filesystem should avoid the `db` (catalog) path entirely — the 87MB pull
+is a non-starter on cold start — and use the `web` resolver with a shared name cache (below).
+
+### Pluggable `NameCache` — back names with Redis/DB/S3
+
+The `web` resolver reads and writes names through a tiny, dependency-free protocol
+(`boardlink.cache.NameCache`), so a deploy can swap the default JSON file for a shared store without
+touching the connector. Because names resolve in batches, the interface is batch-shaped:
+
+```python
+class NameCache(Protocol):
+    def get_many(self, keys: list[str]) -> dict[str, str]: ...  # only the known keys
+    def set_many(self, mapping: dict[str, str]) -> None: ...
+```
+
+The default implementation is `FileNameCache(path)` — the JSON behavior described above (atomic
+temp + `os.replace`, missing/corrupt file treated as empty, `ensure_ascii=False`, misses never
+stored). To use your own store, implement the two methods and inject it:
+
+```python
+class RedisNameCache:
+    def __init__(self, client, prefix="boardlink:names:"):
+        self.client, self.prefix = client, prefix
+    def get_many(self, keys):
+        vals = self.client.mget([self.prefix + k for k in keys])
+        return {k: v for k, v in zip(keys, vals) if v is not None}
+    def set_many(self, mapping):
+        if mapping:
+            self.client.mset({self.prefix + k: v for k, v in mapping.items()})
+
+connect_tension(token=tok, resolve_names="web", cache=RedisNameCache(redis_client))
+# or, calling the resolver directly:
+resolve_climb_names("tension", uuids, cache=RedisNameCache(redis_client))
+```
+
+`cache=` takes precedence over `cache_path=`; when neither is given the default `FileNameCache` at the
+per-board path is used, so existing `cache_path=`/`db_path=` callers behave exactly as before.
+boardlink ships **no** Redis/S3 dependency — the app supplies its own implementation.
+
+### Logbook caching stays the app's job
+
+Only the global-static name/catalog caches are stored by boardlink. The per-user logbook is
+intentionally **not** cached — the connector is stateless and re-syncs on each call, leaving logbook
+persistence to the application. Aurora's incremental `/sync` (a `since`-date parameter, currently
+pinned to the epoch) is the future lever for cheap delta syncs once an app keeps its own logbook
+store. TypeScript parity for these caching backends is not implemented yet.
+
 ## Download source and cache location
 
 The catalog is pulled from the board's latest Android APK via APKPure
