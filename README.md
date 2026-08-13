@@ -1,5 +1,8 @@
 # boardlink
 
+[![CI](https://github.com/milwil-2/boardlink/actions/workflows/ci.yml/badge.svg)](https://github.com/milwil-2/boardlink/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Connect to climbing-board apps — **Kilter**, **Tension**, and **MoonBoard** — and pull your logbook
 as normalized, board-agnostic ascents. One data contract, in both **TypeScript** and **Python**.
 
