@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Optional
+from typing import Optional, Union
 from urllib.parse import quote
 
 import requests
@@ -27,20 +27,30 @@ def connect_tension(
     *,
     token: Optional[str] = None,
     db_path: Optional[str] = None,
-    resolve_names: bool = False,
+    resolve_names: Union[bool, str, None] = False,
 ) -> ConnectResult:
     """Connect to Tension and return the normalized logbook.
 
-    Aurora's /sync omits climb names. They stay blank unless the caller opts into offline resolution:
-    pass ``db_path`` to use an existing catalog, ``resolve_names=True`` to download it (cache-first,
-    ~100MB) if absent, or leave both unset and a cached catalog is used automatically when present.
+    Aurora's /sync omits climb names. They stay blank unless the caller picks a resolution strategy
+    via ``resolve_names``; precedence, highest first:
+
+    - ``db_path=...`` always forces the offline-catalog path, using that catalog file directly.
+    - ``resolve_names="web"`` scrapes each climb's public web page (no big download, N small cacheable
+      requests; see ``webnames``). Ignored when ``db_path`` is set.
+    - ``resolve_names="db"`` (or the legacy ``True``) downloads the ~87MB catalog (cache-first) if it
+      is not already cached, then resolves offline.
+    - ``resolve_names=False``/``None`` (default) resolves only if a catalog is already cached,
+      otherwise names stay blank.
     """
     session = token or _login("tension", TENSION_WEB, username, password)
     data = _sync("tension", TENSION_WEB, session)
     ascents = _sync_to_ascents("tension", data)
-    path = _catalog_path(db_path, resolve_names)
-    if path:
-        _fill_climb_names(ascents, path)
+    if not db_path and resolve_names == "web":
+        _fill_climb_names_web(ascents)
+    else:
+        path = _catalog_path(db_path, resolve_names)
+        if path:
+            _fill_climb_names(ascents, path)
     return ConnectResult("tension", session, ascents)
 
 
@@ -55,7 +65,18 @@ def _catalog_path(db_path: Optional[str], resolve_names: bool) -> Optional[str]:
 
 def _fill_climb_names(ascents, path) -> None:
     uuids = [a.raw.get("climb_uuid") for a in ascents if a.raw]
-    names = climb_names(path, uuids)
+    _apply_names(ascents, climb_names(path, uuids))
+
+
+def _fill_climb_names_web(ascents) -> None:
+    # Lazy import breaks the aurora <-> webnames cycle (webnames reuses TENSION_WEB and _AURORA_UA).
+    from .webnames import resolve_climb_names
+
+    uuids = [a.raw.get("climb_uuid") for a in ascents if a.raw]
+    _apply_names(ascents, resolve_climb_names("tension", uuids))
+
+
+def _apply_names(ascents, names) -> None:
     for a in ascents:
         name = names.get((a.raw or {}).get("climb_uuid"))
         if name:

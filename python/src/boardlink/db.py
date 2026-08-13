@@ -38,6 +38,10 @@ def default_db_path(board: str) -> str:
     return os.path.join(_cache_dir(), f"{board}.sqlite3")
 
 
+def default_names_path(board: str) -> str:
+    return os.path.join(_cache_dir(), f"{board}-names.json")
+
+
 def _extract_sqlite(bundle: bytes, board: str) -> bytes:
     # APKPure serves an XAPK/zip whose payload APK holds the sqlite; older single-APK bundles expose
     # assets/db.sqlite3 at the top level instead.

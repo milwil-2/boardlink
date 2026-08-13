@@ -25,21 +25,56 @@ Columns: `uuid` (PK), `layout_id`, `setter_id`, `setter_username`, `name`, `desc
 `edge_left/right/bottom/top`, `angle`, `frames_count`, `frames_pace`, `frames`, `is_draft`,
 `is_listed`, `created_at`, `is_nomatch`. There is no `difficulty` column.
 
-## Tension name resolution
+## Two ways to resolve Tension names: `web` vs `db`
 
-`connect_tension` resolves names offline, opt-in so no one is forced into a ~100MB download:
+There are two strategies for turning Tension's bare `climb_uuid`s into names. `connect_tension` selects
+between them via `resolve_names`:
 
 ```python
 connect_tension(username=None, password=None, *, token=None, db_path=None, resolve_names=False)
 ```
 
-- `db_path=...` — use an existing catalog file.
-- `resolve_names=True` — download the catalog (cache-first) if it is not already cached, then resolve.
-- neither set — names are filled only if a catalog is already cached; otherwise they stay blank
-  (default behaviour unchanged).
+Precedence, highest first:
 
-After the sync, all ascent `climb_uuid`s are resolved in one batch query and written to
-`Ascent.climb_name`.
+- `db_path=...` — always forces the offline-catalog path, using that catalog file directly.
+- `resolve_names="web"` — the lightweight web resolver (see below). Ignored when `db_path` is set.
+- `resolve_names="db"` (or the legacy `True`) — download the ~87MB catalog (cache-first) if absent,
+  then resolve offline. After the sync all `climb_uuid`s are resolved in one batch query.
+- `resolve_names=False`/`None` (default) — resolve only if a catalog is already cached; else blank.
+
+Either way, resolved names are written to `Ascent.climb_name`; unresolved uuids stay blank.
+
+### `web` — per-climb page scrape (`webnames` module)
+
+Each Aurora board serves a public, unauthenticated page per climb at `<web_host>/climbs/<uuid>`
+(Tension: `https://tensionboardapp2.com`) whose climb name is in both the `<title>` and `<h1>`.
+`resolve_climb_names(board, uuids)` fetches those pages sequentially over one reused `requests.Session`
+with the Aurora app User-Agent, extracts the name (`<title>`, falling back to `<h1>`), and
+`html.unescape`s it. A 404 (unlisted/deleted) or any non-200 leaves that uuid blank and is **not**
+raised.
+
+Resolved names are persisted to a name cache at `$XDG_CACHE_HOME/boardlink/<board>-names.json`
+(default `~/.cache/boardlink/tension-names.json`), written atomically. Resolution is cache-first: only
+uuids not already cached are fetched, and the cache is robust to a missing or corrupt file (treated as
+empty). Misses are never cached, so a climb published later is re-fetched rather than remembered blank.
+Caching names is safe because a climb's name is static.
+
+### Trade-offs
+
+- **`web`** — no big download; N small, cacheable HTTP requests (one per uncached climb). Best for a
+  small logbook or when you cannot afford the ~87MB pull. Downsides: it depends on the public web
+  page's HTML staying scrapeable (a layout change could break extraction), and it is online-only for
+  the first sight of each new climb. After the first resolve, cached climbs cost zero requests.
+- **`db`** — one ~87MB download, then zero per-climb requests and fully offline, with the whole catalog
+  available (names, frames, layout metadata). Best for large logbooks or repeated/offline use.
+  Downside: the upfront download and a point-in-time snapshot that goes stale (see caveats above).
+
+## Logbook caching is the application's job
+
+Only the static name cache is stored by the connector; the logbook itself is intentionally not cached
+— the connector stays stateless and re-syncs on each call, leaving logbook persistence to the
+application. Aurora's incremental `/sync` (a `since`-date parameter, currently pinned to the epoch) is
+the future lever for cheap delta syncs once an app keeps its own logbook store.
 
 ## Download source and cache location
 

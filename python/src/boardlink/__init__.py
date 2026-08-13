@@ -5,6 +5,7 @@ from .grades import font_to_v, parse_v_grade
 from .kilter import connect_kilter
 from .moon import connect_moonboard
 from .types import Ascent, BoardError, BoardSystem, ConnectResult
+from .webnames import resolve_climb_names
 
 __version__ = "0.1.0"
 
@@ -21,6 +22,7 @@ __all__ = [
     "open_board_db",
     "climb_names",
     "climb_name",
+    "resolve_climb_names",
     "parse_v_grade",
     "font_to_v",
     "__version__",
