@@ -1,5 +1,6 @@
 from .aurora import connect_tension
 from .client import connect_board
+from .db import climb_name, climb_names, download_board_db, open_board_db
 from .grades import font_to_v, parse_v_grade
 from .kilter import connect_kilter
 from .moon import connect_moonboard
@@ -16,6 +17,10 @@ __all__ = [
     "connect_kilter",
     "connect_tension",
     "connect_moonboard",
+    "download_board_db",
+    "open_board_db",
+    "climb_names",
+    "climb_name",
     "parse_v_grade",
     "font_to_v",
     "__version__",

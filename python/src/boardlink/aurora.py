@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import os
 import re
 from typing import Optional
 from urllib.parse import quote
 
 import requests
 
+from .db import climb_names, default_db_path, download_board_db
 from .difficulty import grade_for_difficulty
 from .types import Ascent, BoardError, ConnectResult
 
@@ -19,10 +21,45 @@ _BASE_SYNC_DATE = "1970-01-01 00:00:00.000000"
 _AURORA_UA = "Kilter%20Board/202 CFNetwork/1568.100.1 Darwin/24.0.0"
 
 
-def connect_tension(username: Optional[str] = None, password: Optional[str] = None, *, token: Optional[str] = None) -> ConnectResult:
+def connect_tension(
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+    *,
+    token: Optional[str] = None,
+    db_path: Optional[str] = None,
+    resolve_names: bool = False,
+) -> ConnectResult:
+    """Connect to Tension and return the normalized logbook.
+
+    Aurora's /sync omits climb names. They stay blank unless the caller opts into offline resolution:
+    pass ``db_path`` to use an existing catalog, ``resolve_names=True`` to download it (cache-first,
+    ~100MB) if absent, or leave both unset and a cached catalog is used automatically when present.
+    """
     session = token or _login("tension", TENSION_WEB, username, password)
     data = _sync("tension", TENSION_WEB, session)
-    return ConnectResult("tension", session, _sync_to_ascents("tension", data))
+    ascents = _sync_to_ascents("tension", data)
+    path = _catalog_path(db_path, resolve_names)
+    if path:
+        _fill_climb_names(ascents, path)
+    return ConnectResult("tension", session, ascents)
+
+
+def _catalog_path(db_path: Optional[str], resolve_names: bool) -> Optional[str]:
+    if db_path:
+        return db_path
+    if resolve_names:
+        return download_board_db("tension")
+    cached = default_db_path("tension")
+    return cached if os.path.exists(cached) else None
+
+
+def _fill_climb_names(ascents, path) -> None:
+    uuids = [a.raw.get("climb_uuid") for a in ascents if a.raw]
+    names = climb_names(path, uuids)
+    for a in ascents:
+        name = names.get((a.raw or {}).get("climb_uuid"))
+        if name:
+            a.climb_name = name
 
 
 def _login(board, host, username, password) -> str:
