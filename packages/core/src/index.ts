@@ -10,6 +10,9 @@ export * from "./http.js";
 export * from "./aurora.js";
 export * from "./kilter.js";
 export * from "./moon.js";
+export * from "./cache.js";
+export * from "./db.js";
+export * from "./webnames.js";
 
 /** Connect to Tension (still on the Aurora backend) and pull the normalized logbook. */
 export const connectTension = (auth: BoardAuth, opts?: ConnectOptions): Promise<ConnectResult> =>
