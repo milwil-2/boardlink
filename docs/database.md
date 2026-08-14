@@ -142,7 +142,7 @@ Only the global-static name/catalog caches are stored by boardlink. The per-user
 intentionally **not** cached — the connector is stateless and re-syncs on each call, leaving logbook
 persistence to the application. Aurora's incremental `/sync` (a `since`-date parameter, currently
 pinned to the epoch) is the future lever for cheap delta syncs once an app keeps its own logbook
-store. TypeScript parity for these caching backends is not implemented yet.
+store. The TypeScript SDK implements the same `db`, `webnames`, and `NameCache` surface (see below).
 
 ## Download source and cache location
 
@@ -168,8 +168,8 @@ The cache lives outside the repo, at `$XDG_CACHE_HOME/boardlink/<board>.sqlite3`
 
 ## TypeScript port
 
-Not built yet. A TS port needs a SQLite dependency decision: `better-sqlite3` (a native addon —
-synchronous, battle-tested, but requires a compile/prebuild step) versus Node's built-in
-`node:sqlite` (no dependency, but recent and still marked experimental, so it raises the minimum Node
-version). The APK download and zip extraction are straightforward with `fetch` plus a zip library;
-the sqlite driver is the only real choice. The read-only queries mirror this module exactly.
+Implemented. `@boardlink/core` ships `db`, `webnames`, and `cache` modules mirroring this Python
+surface. To stay dependency-free it uses Node's built-in `node:sqlite` (rather than the native
+`better-sqlite3` addon), which raises the minimum runtime to Node 22+; it is loaded lazily behind a
+guard that throws an actionable error on older runtimes, and the APK download and zip extraction use
+`fetch` plus `node:zlib`. The read-only queries mirror this module exactly.

@@ -17,8 +17,11 @@ secrets/
 .mitmproxy/
 wg-*.conf
 
-# capture output (may contain semi-sensitive data even when redacted)
-tools/capture/
+# local diagnostic/RE tooling & capture output — kept local, not published
+tools/
+
+# personal drafts — kept local
+docs/announcement-draft.md
 
 # Python
 .venv/

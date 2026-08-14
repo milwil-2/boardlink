@@ -35,7 +35,6 @@ packages/
   core/     @boardlink/core    TypeScript SDK
   server/   @boardlink/server  HTTP wrapper + zero-dep Node server + CLI
 python/     boardlink          native Python package (PyPI)
-tools/                         diagnostics used while building the connectors
 ```
 
 ## The Ascent contract
