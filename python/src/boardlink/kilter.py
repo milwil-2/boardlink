@@ -178,6 +178,7 @@ def kilter_log_to_ascent(log: dict) -> Ascent:
         v_grade=consensus["v_grade"] if consensus else None,
         tries=attempts if isinstance(attempts, int) else (1 if log.get("flashed") else None),
         angle=angle if isinstance(angle, int) else None,
+        comment=(log.get("comment") or "").strip() or None,
         raw=log,
     )
 

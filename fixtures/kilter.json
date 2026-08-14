@@ -1,5 +1,5 @@
 {
-  "description": "Golden fixture for the Kilter connector. `raw` is a synthetic GET /api/logs response (the array kilterFetchLogbook returns); `expected` is the normalized Ascent list after connectKilter's `topped !== false` filter, using only synthetic values. Scenarios: [0] flash (attempts==1), [1] multi-attempt send with a differing personal grade, [2] mirror (raw isMirror true), [3] missing optional fields with flash fallback, [4] unsent project dropped (topped false).",
+  "description": "Golden fixture for the Kilter connector. `raw` is a synthetic GET /api/logs response (the array kilterFetchLogbook returns); `expected` is the normalized Ascent list after connectKilter's `topped !== false` filter, using only synthetic values. Scenarios: [0] flash (attempts==1) with a comment, [1] multi-attempt send with a differing personal grade, [2] raw isMirror true is deliberately NOT trusted (the /api/logs endpoint does not return it, so isMirror stays false), [3] missing optional fields with flash fallback, [4] unsent project dropped (topped false).",
   "raw": [
     {
       "logUuid": "log-0001",
@@ -70,7 +70,7 @@
       "isBenchmark": false,
       "isMirror": false,
       "isRepeat": false,
-      "comment": null
+      "comment": "felt great"
     },
     {
       "board": "kilter",

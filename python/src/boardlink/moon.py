@@ -75,6 +75,7 @@ def moon_entry_to_ascent(entry: dict) -> Optional[Ascent]:
         angle=_ANGLE,
         is_benchmark=bool(p.get("IsBenchmark")),
         comment=(entry.get("Comment") or "").strip() or None,
+        raw=entry,
     )
 
 

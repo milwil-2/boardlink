@@ -182,6 +182,7 @@ export interface KilterLog {
   topped: boolean;
   createdAt: string;
   currentDifficultyId?: number;
+  comment?: string;
   /** The user's own grade suggestion for this climb, when they submitted one. */
   climbRating?: { difficultyGradeId?: number } & Record<string, unknown>;
   [key: string]: unknown;
@@ -220,6 +221,7 @@ export function kilterLogToAscent(log: KilterLog): Ascent {
     vGrade: consensus?.vGrade,
     tries: typeof log.attempts === "number" ? log.attempts : log.flashed ? 1 : undefined,
     angle: typeof log.angle === "number" ? log.angle : undefined,
+    comment: (typeof log.comment === "string" ? log.comment.trim() : "") || undefined,
     raw: log,
   };
 }
