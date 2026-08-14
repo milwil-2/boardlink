@@ -14,6 +14,19 @@
   },
   "files": ["dist"],
   "license": "MIT",
+  "author": "milwil-2",
+  "keywords": ["climbing", "kilter", "tension", "moonboard", "logbook", "board"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/milwil-2/boardlink.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/milwil-2/boardlink#readme",
+  "bugs": "https://github.com/milwil-2/boardlink/issues",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",

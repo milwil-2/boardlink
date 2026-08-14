@@ -1,0 +1,34 @@
+name: Publish
+
+# Publishes @boardlink/core and @boardlink/server to the public npm registry.
+# Trigger by publishing a GitHub Release (tag it e.g. v0.1.0). Requires an
+# NPM_TOKEN repository secret (an npm automation/granular token with publish rights
+# on the @boardlink scope). Provenance requires id-token: write + a public repo.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # required for npm provenance
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r build
+      - run: pnpm -r test
+      # Publishes in topological order (core before server) and rewrites the
+      # workspace:* dependency to the real version. Non-private packages only.
+      - run: pnpm -r publish --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
