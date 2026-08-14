@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import type { Ascent, BoardAuth, ConnectOptions, ConnectResult } from "./types.js";
 import { BoardError } from "./types.js";
 import { gradeForDifficulty } from "./difficulty.js";
@@ -17,8 +18,9 @@ export const AURORA_HOSTS: Record<AuroraBoard, string> = {
 };
 
 // The `/sync` route is gated on a native-app User-Agent; without it the server 404s. The app sends
-// this string verbatim (the %20 is a literal, from the URL-encoded "Kilter Board" app name).
-const AURORA_UA = "Kilter%20Board/202 CFNetwork/1568.100.1 Darwin/24.0.0";
+// this string verbatim (the %20 is a literal, from the URL-encoded "Kilter Board" app name). Exported
+// because the web name resolver (webnames.ts) hits the same Aurora host and reuses this UA.
+export const AURORA_UA = "Kilter%20Board/202 CFNetwork/1568.100.1 Darwin/24.0.0";
 
 export const BASE_SYNC_DATE = "1970-01-01 00:00:00.000000";
 
@@ -143,5 +145,56 @@ export async function connectAurora(
   const json = (await res.json().catch(() => {
     throw new BoardError("unexpected-response", "sync did not return JSON", board);
   })) as Parameters<typeof auroraSyncToAscents>[1];
-  return { board, token, ascents: auroraSyncToAscents(board, json) };
+  const ascents = auroraSyncToAscents(board, json);
+  // Aurora's /sync omits climb names. Tension can backfill them (see fillTensionNames precedence);
+  // Kilter-via-Aurora is legacy and left blank, matching the Python wiring (connect_tension only).
+  if (board === "tension") await fillTensionNames(ascents, opts);
+  return { board, token, ascents };
+}
+
+// --- Tension climb-name resolution ------------------------------------------
+// Mirrors Python's connect_tension precedence, highest first:
+//   dbPath > resolveNames:"web" > resolveNames:"db"|true > cached-catalog-if-present > blank.
+// db/webnames are imported lazily so a plain connect (no resolution) never loads node:sqlite, and so
+// the aurora <-> webnames import cycle (webnames reuses AURORA_HOSTS/AURORA_UA) never forms.
+
+async function fillTensionNames(ascents: Ascent[], opts: ConnectOptions): Promise<void> {
+  const uuids = ascents
+    .filter((a) => a.raw)
+    .map((a) => a.raw!.climb_uuid as string | null | undefined);
+  const { dbPath, resolveNames = false } = opts;
+
+  let names: Record<string, string> | undefined;
+  if (!dbPath && resolveNames === "web") {
+    const { resolveClimbNames } = await import("./webnames.js");
+    // Reuse the injected fetch (if any) as the resolver session, so a test/proxy fetch also covers
+    // web name resolution — the TS analogue of Python passing only `cache` (requests is global there).
+    names = await resolveClimbNames("tension", uuids, { cache: opts.cache, session: opts.fetch });
+  } else {
+    const path = await tensionCatalogPath(dbPath, resolveNames);
+    if (path) {
+      const { climbNames } = await import("./db.js");
+      names = climbNames(path, uuids);
+    }
+  }
+  if (names) applyNames(ascents, names);
+}
+
+async function tensionCatalogPath(
+  dbPath: string | undefined,
+  resolveNames: boolean | "db" | "web",
+): Promise<string | undefined> {
+  if (dbPath) return dbPath;
+  const { defaultDbPath, downloadBoardDb } = await import("./db.js");
+  if (resolveNames) return downloadBoardDb("tension");
+  const cached = defaultDbPath("tension");
+  return existsSync(cached) ? cached : undefined;
+}
+
+function applyNames(ascents: Ascent[], names: Record<string, string>): void {
+  for (const a of ascents) {
+    const uuid = a.raw?.climb_uuid as string | undefined;
+    const name = uuid ? names[uuid] : undefined;
+    if (name) a.climbName = name;
+  }
 }

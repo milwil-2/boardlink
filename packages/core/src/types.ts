@@ -1,3 +1,5 @@
+import type { NameCache } from "./cache.js";
+
 /** The climbing-board systems boardlink can connect to. */
 export type BoardSystem = "kilter" | "tension" | "moonboard";
 
@@ -62,6 +64,24 @@ export interface ConnectOptions {
   fetch?: typeof fetch;
   /** Override the User-Agent header (MoonBoard is picky about it). */
   userAgent?: string;
+  /**
+   * Tension only. Force the offline-catalog path, resolving the climb names Aurora's sync omits from
+   * this catalog file directly. Highest precedence — wins over {@link resolveNames}.
+   */
+  dbPath?: string;
+  /**
+   * Tension only. Strategy for resolving the climb names Aurora's sync omits (ignored when
+   * {@link dbPath} is set):
+   * - `"web"` — scrape each climb's public web page (no big download, N small cacheable requests).
+   * - `"db"` / `true` — download the ~87MB catalog (cache-first) if not already cached, then resolve.
+   * - `false` / omitted (default) — resolve only if a catalog is already cached, else names stay blank.
+   */
+  resolveNames?: boolean | "db" | "web";
+  /**
+   * Tension only, `resolveNames: "web"` path. A {@link NameCache} to back resolved names with a
+   * deploy's own store (Redis/DB/S3) instead of the default JSON file.
+   */
+  cache?: NameCache;
 }
 
 /** A known, user-actionable failure category. */
