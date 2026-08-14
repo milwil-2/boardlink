@@ -1,0 +1,112 @@
+{
+  "description": "Golden fixture for the Tension connector (Aurora backend). `raw` is a synthetic POST /sync response; `expected` is the normalized Ascent list from auroraSyncToAscents, using only synthetic values. Scenarios: [0] flash (attempt_id 1), [1] multi-attempt send from bid_count with a comment, [2] mirror (is_mirror true), [3] missing optional fields (graceful defaults), then two dropped: an unlisted ascent (is_listed false) and one with no climbed_at. Aurora's sync omits climb names (climbName stays \"\") and has no unsent-project or repeat concept, so those are covered on other boards.",
+  "raw": {
+    "ascents": [
+      {
+        "uuid": "asc-0001",
+        "climb_uuid": "tclimb-0001",
+        "climbed_at": "2026-02-01 18:00:00",
+        "difficulty": 22,
+        "angle": 40,
+        "attempt_id": 1,
+        "bid_count": 0,
+        "is_listed": true
+      },
+      {
+        "uuid": "asc-0002",
+        "climb_uuid": "tclimb-0002",
+        "climbed_at": "2026-02-02 19:30:00",
+        "difficulty": 23,
+        "angle": 40,
+        "bid_count": 2,
+        "comment": "solid",
+        "is_listed": true
+      },
+      {
+        "uuid": "asc-0003",
+        "climb_uuid": "tclimb-0003",
+        "climbed_at": "2026-02-03 20:00:00",
+        "difficulty": 20,
+        "angle": 35,
+        "attempt_id": 1,
+        "is_mirror": true,
+        "is_listed": true
+      },
+      {
+        "uuid": "asc-0004",
+        "climb_uuid": "tclimb-0004",
+        "climbed_at": "2026-02-04 21:00:00"
+      },
+      {
+        "uuid": "asc-0005",
+        "climb_uuid": "tclimb-0005",
+        "climbed_at": "2026-02-05 08:00:00",
+        "difficulty": 24,
+        "is_listed": false
+      },
+      {
+        "uuid": "asc-0006",
+        "climb_uuid": "tclimb-0006",
+        "difficulty": 22
+      }
+    ]
+  },
+  "expected": [
+    {
+      "board": "tension",
+      "climbName": "",
+      "date": "2026-02-01T18:00:00Z",
+      "grade": "7A/V6",
+      "userGrade": "7A/V6",
+      "vGrade": 6,
+      "tries": 1,
+      "angle": 40,
+      "isBenchmark": false,
+      "isMirror": false,
+      "isRepeat": false,
+      "comment": null
+    },
+    {
+      "board": "tension",
+      "climbName": "",
+      "date": "2026-02-02T19:30:00Z",
+      "grade": "7A+/V7",
+      "userGrade": "7A+/V7",
+      "vGrade": 7,
+      "tries": 3,
+      "angle": 40,
+      "isBenchmark": false,
+      "isMirror": false,
+      "isRepeat": false,
+      "comment": "solid"
+    },
+    {
+      "board": "tension",
+      "climbName": "",
+      "date": "2026-02-03T20:00:00Z",
+      "grade": "6C/V5",
+      "userGrade": "6C/V5",
+      "vGrade": 5,
+      "tries": 1,
+      "angle": 35,
+      "isBenchmark": false,
+      "isMirror": true,
+      "isRepeat": false,
+      "comment": null
+    },
+    {
+      "board": "tension",
+      "climbName": "",
+      "date": "2026-02-04T21:00:00Z",
+      "grade": null,
+      "userGrade": null,
+      "vGrade": null,
+      "tries": 1,
+      "angle": null,
+      "isBenchmark": false,
+      "isMirror": false,
+      "isRepeat": false,
+      "comment": null
+    }
+  ]
+}

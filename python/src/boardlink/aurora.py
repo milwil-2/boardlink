@@ -164,6 +164,7 @@ def _to_ascent(board, raw) -> Optional[Ascent]:
         tries=tries,
         angle=raw.get("angle"),
         is_mirror=bool(raw.get("is_mirror")),
+        comment=(raw.get("comment") or "").strip() or None,
         raw=raw,
     )
 

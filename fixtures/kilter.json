@@ -1,0 +1,118 @@
+{
+  "description": "Golden fixture for the Kilter connector. `raw` is a synthetic GET /api/logs response (the array kilterFetchLogbook returns); `expected` is the normalized Ascent list after connectKilter's `topped !== false` filter, using only synthetic values. Scenarios: [0] flash (attempts==1), [1] multi-attempt send with a differing personal grade, [2] mirror (raw isMirror true), [3] missing optional fields with flash fallback, [4] unsent project dropped (topped false).",
+  "raw": [
+    {
+      "logUuid": "log-0001",
+      "climbUuid": "climb-0001",
+      "climbName": "Synthetic Slab",
+      "angle": 40,
+      "attempts": 1,
+      "flashed": true,
+      "topped": true,
+      "createdAt": "2026-01-05T10:00:00.000000Z",
+      "currentDifficultyId": 22,
+      "comment": "felt great"
+    },
+    {
+      "logUuid": "log-0002",
+      "climbUuid": "climb-0002",
+      "climbName": "Synthetic Overhang",
+      "angle": 45,
+      "attempts": 4,
+      "flashed": false,
+      "topped": true,
+      "createdAt": "2026-01-06T11:30:00.000000Z",
+      "currentDifficultyId": 26,
+      "climbRating": { "difficultyGradeId": 25 }
+    },
+    {
+      "logUuid": "log-0003",
+      "climbUuid": "climb-0003",
+      "climbName": "Mirror Problem",
+      "angle": 50,
+      "attempts": 2,
+      "flashed": false,
+      "topped": true,
+      "createdAt": "2026-01-07T09:15:00.000000Z",
+      "currentDifficultyId": 20,
+      "isMirror": true
+    },
+    {
+      "logUuid": "log-0004",
+      "climbUuid": "climb-0004",
+      "climbName": "Sparse Entry",
+      "flashed": true,
+      "topped": true,
+      "createdAt": "2026-01-08T12:00:00.000000Z"
+    },
+    {
+      "logUuid": "log-0005",
+      "climbUuid": "climb-0005",
+      "climbName": "Unsent Project",
+      "angle": 55,
+      "attempts": 5,
+      "flashed": false,
+      "topped": false,
+      "createdAt": "2026-01-09T14:00:00.000000Z",
+      "currentDifficultyId": 24
+    }
+  ],
+  "expected": [
+    {
+      "board": "kilter",
+      "climbName": "Synthetic Slab",
+      "date": "2026-01-05T10:00:00.000000Z",
+      "grade": "7A/V6",
+      "userGrade": null,
+      "vGrade": 6,
+      "tries": 1,
+      "angle": 40,
+      "isBenchmark": false,
+      "isMirror": false,
+      "isRepeat": false,
+      "comment": null
+    },
+    {
+      "board": "kilter",
+      "climbName": "Synthetic Overhang",
+      "date": "2026-01-06T11:30:00.000000Z",
+      "grade": "7C/V9",
+      "userGrade": "7B+/V8",
+      "vGrade": 9,
+      "tries": 4,
+      "angle": 45,
+      "isBenchmark": false,
+      "isMirror": false,
+      "isRepeat": false,
+      "comment": null
+    },
+    {
+      "board": "kilter",
+      "climbName": "Mirror Problem",
+      "date": "2026-01-07T09:15:00.000000Z",
+      "grade": "6C/V5",
+      "userGrade": null,
+      "vGrade": 5,
+      "tries": 2,
+      "angle": 50,
+      "isBenchmark": false,
+      "isMirror": false,
+      "isRepeat": false,
+      "comment": null
+    },
+    {
+      "board": "kilter",
+      "climbName": "Sparse Entry",
+      "date": "2026-01-08T12:00:00.000000Z",
+      "grade": null,
+      "userGrade": null,
+      "vGrade": null,
+      "tries": 1,
+      "angle": null,
+      "isBenchmark": false,
+      "isMirror": false,
+      "isRepeat": false,
+      "comment": null
+    }
+  ]
+}

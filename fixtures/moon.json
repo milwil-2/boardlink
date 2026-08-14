@@ -1,0 +1,103 @@
+{
+  "description": "Golden fixture for the MoonBoard connector. `raw` is a synthetic flattened logbook-entry list (the input moonEntriesToAscents consumes); `expected` is the normalized Ascent list, using only synthetic values. Scenarios: [0] flash + benchmark + comment, [1] multi-attempt (3rd try) with a differing personal grade, [2] more-than-3-tries send, [3] missing optional fields (no NumberOfTries -> tries 1, no Problem -> graceful defaults), then three dropped: an unsent project (NumberOfTries Project), an undated send, and an unparseable date. MoonBoard has no mirror/repeat concept, so isMirror/isRepeat are always false.",
+  "raw": [
+    {
+      "Id": 1,
+      "DateClimbedAsString": "15 Nov 2023",
+      "NumberOfTries": "Flashed",
+      "Comment": " nice send ",
+      "Problem": { "Name": "Moon Test One", "Grade": "7A", "IsBenchmark": true }
+    },
+    {
+      "Id": 2,
+      "DateClimbedAsString": "16 Nov 2023",
+      "NumberOfTries": "3rd try",
+      "Problem": { "Name": "Moon Test Two", "Grade": "7B+", "UserGrade": "7C" }
+    },
+    {
+      "Id": 3,
+      "DateClimbedAsString": "17 Nov 2023",
+      "NumberOfTries": "more than 3 tries",
+      "Problem": { "Name": "Moon Test Three", "Grade": "6C" }
+    },
+    {
+      "Id": 4,
+      "DateClimbedAsString": "3 Jan 2026"
+    },
+    {
+      "Id": 5,
+      "DateClimbedAsString": "18 Nov 2023",
+      "NumberOfTries": "Project",
+      "Problem": { "Name": "Moon Project", "Grade": "8A" }
+    },
+    {
+      "Id": 6,
+      "NumberOfTries": "Flashed",
+      "Problem": { "Name": "Undated Send", "Grade": "6B" }
+    },
+    {
+      "Id": 7,
+      "DateClimbedAsString": "garbage",
+      "NumberOfTries": "Flashed",
+      "Problem": { "Name": "Bad Date", "Grade": "6B" }
+    }
+  ],
+  "expected": [
+    {
+      "board": "moonboard",
+      "climbName": "Moon Test One",
+      "date": "2023-11-15",
+      "grade": "7A",
+      "userGrade": "7A",
+      "vGrade": 6,
+      "tries": 1,
+      "angle": 40,
+      "isBenchmark": true,
+      "isMirror": false,
+      "isRepeat": false,
+      "comment": "nice send"
+    },
+    {
+      "board": "moonboard",
+      "climbName": "Moon Test Two",
+      "date": "2023-11-16",
+      "grade": "7B+",
+      "userGrade": "7C",
+      "vGrade": 8,
+      "tries": 3,
+      "angle": 40,
+      "isBenchmark": false,
+      "isMirror": false,
+      "isRepeat": false,
+      "comment": null
+    },
+    {
+      "board": "moonboard",
+      "climbName": "Moon Test Three",
+      "date": "2023-11-17",
+      "grade": "6C",
+      "userGrade": "6C",
+      "vGrade": 5,
+      "tries": 4,
+      "angle": 40,
+      "isBenchmark": false,
+      "isMirror": false,
+      "isRepeat": false,
+      "comment": null
+    },
+    {
+      "board": "moonboard",
+      "climbName": "",
+      "date": "2026-01-03",
+      "grade": null,
+      "userGrade": null,
+      "vGrade": null,
+      "tries": 1,
+      "angle": 40,
+      "isBenchmark": false,
+      "isMirror": false,
+      "isRepeat": false,
+      "comment": null
+    }
+  ]
+}
