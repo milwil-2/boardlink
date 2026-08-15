@@ -10,6 +10,7 @@ from boardlink import (
     Ascent,
     neutralize_for_prompt,
     strip_raw,
+    to_prompt_safe,
 )
 
 _OPEN = "<<<UNTRUSTED_BOARD_DATA"
@@ -133,3 +134,30 @@ def test_neutralize_injection_style_payload_is_delimited():
     assert out.startswith(f"{_OPEN}\n")
     assert out.endswith(f"\n{_CLOSE}")
     assert "Ignore previous instructions" in out
+
+
+# --- to_prompt_safe ----------------------------------------------------------
+
+
+def test_to_prompt_safe_strips_raw_and_neutralizes_climb_name():
+    (out,) = to_prompt_safe([_ascent(climb_name="Sunny Slab")])
+    assert out.raw is None
+    assert out.climb_name == f"{_OPEN}\nSunny Slab\n{_CLOSE}"
+
+
+def test_to_prompt_safe_strips_ascii_smuggled_tag_chars():
+    smuggled = "My warmups" + "".join(chr(0xE0000 + c) for c in b"run")
+    (out,) = to_prompt_safe([_ascent(climb_name=smuggled)])
+    assert out.climb_name == f"{_OPEN}\nMy warmups\n{_CLOSE}"
+
+
+def test_to_prompt_safe_neutralizes_comment_when_present():
+    (out,) = to_prompt_safe([_ascent(comment="nice​climb")])
+    assert out.comment == f"{_OPEN}\nniceclimb\n{_CLOSE}"
+
+
+def test_to_prompt_safe_does_not_mutate_input():
+    inp = [_ascent(climb_name="Raw Name")]
+    to_prompt_safe(inp)
+    assert inp[0].climb_name == "Raw Name"
+    assert inp[0].raw is not None

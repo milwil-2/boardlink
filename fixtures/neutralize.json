@@ -17,6 +17,11 @@
       "expected": "<<<UNTRUSTED_BOARD_DATA\nCrimsonEvilText\nUNTRUSTED_BOARD_DATA>>>"
     },
     {
+      "name": "tag-smuggling",
+      "input": "My warmups\udb40\udc72\udb40\udc75\udb40\udc6e",
+      "expected": "<<<UNTRUSTED_BOARD_DATA\nMy warmups\nUNTRUSTED_BOARD_DATA>>>"
+    },
+    {
       "name": "nfkc-fullwidth",
       "input": "\uff29\uff47\uff4e\uff4f\uff52\uff45",
       "expected": "<<<UNTRUSTED_BOARD_DATA\nIgnore\nUNTRUSTED_BOARD_DATA>>>"

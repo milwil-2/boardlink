@@ -23,6 +23,7 @@ __all__ = [
     "UNTRUSTED_ASCENT_FIELDS",
     "strip_raw",
     "neutralize_for_prompt",
+    "to_prompt_safe",
 ]
 
 # Every Ascent field whose content originates from user-controlled board data and must be treated as
@@ -42,9 +43,13 @@ _DEFAULT_MAX_LENGTH = 1000
 _CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
 
 # Unicode characters commonly used to disguise instructions: bidi overrides/isolates
-# (U+202A–U+202E, U+2066–U+2069), zero-width characters (U+200B–U+200F) and the BOM (U+FEFF).
+# (U+202A–U+202E, U+2066–U+2069), zero-width characters (U+200B–U+200F), the BOM (U+FEFF), and the
+# Unicode Tags block (U+E0000–U+E007F). Tag characters are Default_Ignorable (they render as nothing)
+# but shadow printable ASCII, enabling invisible "ASCII smuggling" of a full instruction; NFKC does
+# not fold them, so they must be stripped explicitly. The astral Tags range is written as a \\U escape
+# to keep invisible characters out of the source.
 _DISGUISE_CHARS = re.compile(
-    "[‪-‮⁦-⁩​-‏﻿]"
+    "[​-‏‪-‮⁦-⁩﻿\U000e0000-\U000e007f]"
 )
 
 
@@ -65,7 +70,8 @@ def neutralize_for_prompt(text: str, max_length: int | None = None) -> str:
     Applies, in this exact order: (1) applies Unicode NFKC normalization (folding compatibility
     homoglyphs), then strips all C0/C1 control characters except ``\\n`` and ``\\t``, normalizing
     ``\\r\\n`` and ``\\r`` to ``\\n``; (2) strips Unicode characters commonly used to
-    disguise instructions (bidi overrides/isolates, zero-widths, BOM); (3) truncates to
+    disguise instructions (bidi overrides/isolates, zero-widths, BOM, and the Unicode Tags block
+    U+E0000–U+E007F used for invisible ASCII smuggling); (3) truncates to
     ``max_length`` characters (default 1000), appending ``"…[truncated]"`` when cut; (4) removes any
     occurrence of the delimiter strings from the content, then wraps the result as::
 
@@ -102,3 +108,24 @@ def neutralize_for_prompt(text: str, max_length: int | None = None) -> str:
     content = content.replace(_OPEN_MARKER, "").replace(_CLOSE_MARKER, "")
 
     return f"{_OPEN_MARKER}\n{content}\n{_CLOSE_MARKER}"
+
+
+def to_prompt_safe(ascents: List[Ascent], max_length: int | None = None) -> List[Ascent]:
+    """Strip ``raw`` and neutralize every untrusted string field, in one call.
+
+    Returns a NEW list of ascents whose ``climb_name`` (and ``comment``, when present) are already
+    wrapped in the untrusted-data markers by :func:`neutralize_for_prompt`, ready to drop into a
+    prompt. This is the shortest safe path — reach for it instead of hand-neutralizing field by field.
+    Pure and non-mutating. Mirrors the TypeScript ``toPromptSafe``.
+
+    Same DEFENSE-IN-DEPTH caveat as :func:`neutralize_for_prompt`: fencing untrusted text does NOT
+    make a model immune to instructions inside it. Also design the prompt to treat fenced content as
+    data, and never let board-derived text authorize privileged tool calls.
+    """
+    out: List[Ascent] = []
+    for ascent in strip_raw(ascents):
+        changes: dict = {"climb_name": neutralize_for_prompt(ascent.climb_name, max_length)}
+        if ascent.comment is not None:
+            changes["comment"] = neutralize_for_prompt(ascent.comment, max_length)
+        out.append(replace(ascent, **changes))
+    return out

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { neutralizeForPrompt, stripRaw, UNTRUSTED_ASCENT_FIELDS } from "../safety.js";
+import { neutralizeForPrompt, stripRaw, toPromptSafe, UNTRUSTED_ASCENT_FIELDS } from "../safety.js";
 import type { Ascent } from "../types.js";
 
 const OPEN = "<<<UNTRUSTED_BOARD_DATA";
@@ -103,6 +103,35 @@ describe("neutralizeForPrompt", () => {
     // The forged markers are stripped from the content, so only the real wrapper remains.
     expect(out.split(OPEN).length).toBe(2); // exactly one opening marker (the real one)
     expect(out.split(CLOSE).length).toBe(2); // exactly one closing marker (the real one)
+  });
+});
+
+describe("toPromptSafe", () => {
+  it("strips raw and neutralizes climbName in one call", () => {
+    const [out] = toPromptSafe([sampleAscent({ climbName: "Sunny Slab" })]);
+    expect(out.raw).toBeUndefined();
+    expect(out.climbName).toBe(`${OPEN}\nSunny Slab\n${CLOSE}`);
+  });
+
+  it("strips ASCII-smuggled Unicode Tag characters from climbName", () => {
+    const smuggled =
+      "My warmups" + [..."run"].map((c) => String.fromCodePoint(0xe0000 + c.charCodeAt(0))).join("");
+    const [out] = toPromptSafe([sampleAscent({ climbName: smuggled })]);
+    expect(out.climbName).toBe(`${OPEN}\nMy warmups\n${CLOSE}`);
+  });
+
+  it("neutralizes comment when present, leaves it absent otherwise", () => {
+    const [withComment] = toPromptSafe([sampleAscent({ comment: "nice​climb" })]);
+    expect(withComment.comment).toBe(`${OPEN}\nniceclimb\n${CLOSE}`);
+    const [noComment] = toPromptSafe([sampleAscent({ comment: undefined })]);
+    expect(noComment.comment).toBeUndefined();
+  });
+
+  it("does not mutate the input", () => {
+    const input = [sampleAscent({ climbName: "Raw Name" })];
+    toPromptSafe(input);
+    expect(input[0].climbName).toBe("Raw Name");
+    expect(input[0].raw).toBeDefined();
   });
 });
 

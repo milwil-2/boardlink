@@ -20,8 +20,9 @@ wg-*.conf
 # local diagnostic/RE tooling & capture output — kept local, not published
 tools/
 
-# personal drafts — kept local
+# personal drafts & notes — kept local, never published to the public repo
 docs/announcement-draft.md
+docs/private/
 
 # Python
 .venv/
