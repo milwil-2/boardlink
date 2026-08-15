@@ -46,7 +46,7 @@ This endpoint proxies **real board credentials**, and each success response carr
 - **`raw` is stripped by default.** Backend records can carry unaudited fields (UUIDs, gym/location
   data). Responses omit each ascent's `raw` unless you opt in with `includeRaw: true`.
 - **The token is sensitive.** The success response is sent with `Cache-Control: no-store`. Keep the
-  token server-side, encrypted at rest — never in logs, error reports, `localStorage`, or
+  token server-side, encrypted at rest, never in logs, error reports, `localStorage`, or
   JS-readable cookies. This library never logs it.
 
 See [`docs/security.md`](https://github.com/milwil-2/boardlink/blob/main/docs/security.md) for the

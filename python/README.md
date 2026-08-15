@@ -1,7 +1,7 @@
 # boardlink (Python)
 
 Connect to climbing-board apps (Kilter, Tension, MoonBoard) and pull a normalized logbook. Native
-implementation — no third-party board library — emitting the same `Ascent` shape as the TypeScript
+implementation with no third-party board library, emitting the same `Ascent` shape as the TypeScript
 `@boardlink/core` SDK.
 
 ```bash
@@ -26,7 +26,7 @@ except BoardError as e:
 
 Kilter uses the new kiltergrips.com backend (Keycloak auth + a REST logbook); Tension uses the Aurora
 API; MoonBoard uses its own cookie/CSRF session. A password is used once to authenticate and is
-never stored — persist only the returned token.
+never stored; persist only the returned token.
 
 ## Safety: untrusted board data
 

@@ -3,7 +3,7 @@
 [![CI](https://github.com/milwil-2/boardlink/actions/workflows/ci.yml/badge.svg)](https://github.com/milwil-2/boardlink/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Connect to climbing-board apps — **Kilter**, **Tension**, and **MoonBoard** — and pull your logbook
+Connect to climbing-board apps (**Kilter**, **Tension**, and **MoonBoard**) and pull your logbook
 as normalized, board-agnostic ascents. One data contract, in both **TypeScript** and **Python**.
 
 None of these boards has an official public API. boardlink implements the same flows their own apps
@@ -107,12 +107,12 @@ for a in result.ascents:
 
 ## Security
 
-Wrapping an unofficial API means you hold users' **real board passwords** — there's no OAuth, no
-scopes, no revocation UI — so every consumer inherits credential-custodian duties. In short:
+Wrapping an unofficial API means you hold users' **real board passwords**: there's no OAuth, no
+scopes, no revocation UI, so every consumer inherits credential-custodian duties. In short:
 
 - The returned `token` is a long-lived credential: keep it server-side and encrypted, never log it
   or ship it to a browser.
-- `climbName`, `comment`, and `raw` are attacker-writable free text — untrusted input. Run it through
+- `climbName`, `comment`, and `raw` are attacker-writable free text: untrusted input. Run it through
   `neutralizeForPrompt` / `neutralize_for_prompt` before any LLM (defense-in-depth, not a guarantee).
 - The server strips each ascent's `raw` by default (`includeRaw: true` opts back in); use `stripRaw`
   / `strip_raw` when forwarding core results across a trust boundary.
@@ -124,12 +124,12 @@ implementer's checklist.
 
 ## Responsible use
 
-boardlink exists for interoperability — getting your own data out of an app you have an account with.
+boardlink exists for interoperability: getting your own data out of an app you have an account with.
 Please keep it that way:
 
 - Use it with your own account and your own data.
 - Don't scrape other users' data or republish a board's proprietary climb database.
-- Be gentle: cache results and don't hammer the servers — a logbook sync is a single request per
+- Be gentle: cache results and don't hammer the servers. A logbook sync is a single request per
   board, so there's no need to poll it in a loop.
 - Automated access may be against a board's terms of service; that's on you to check.
 
