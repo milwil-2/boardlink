@@ -17,22 +17,22 @@ All `portal` and `sync` calls send `Authorization: Bearer <access_token>` from K
 
 ---
 
-## 1. Auth — Keycloak OIDC + PKCE (fully understood)
+## 1. Auth - Keycloak OIDC + PKCE (fully understood)
 
 Realm: `kilter`. Public client `client_id=kilter` (no secret, PKCE S256).
 Redirect URI: `com.kiltergrips:/oauthredirect`. Discovery doc (public):
 `https://idp.kiltergrips.com/realms/kilter/.well-known/openid-configuration`
 
 Flow (Authorization Code + PKCE):
-1. `GET /realms/kilter/protocol/openid-connect/auth` — params: `response_type=code`,
+1. `GET /realms/kilter/protocol/openid-connect/auth` - params: `response_type=code`,
    `scope=openid offline_access`, `code_challenge`, `code_challenge_method=S256`, `redirect_uri`,
    `client_id=kilter`, `state`, `nonce`. Returns login HTML + `KC_*` session cookie.
    (The app opens this in an iOS system web session, hence a Safari User-Agent.)
-2. `POST /realms/kilter/login-actions/authenticate?session_code=…&execution=…&tab_id=…` —
-   form body `username`, `password` → **302** to `com.kiltergrips:/oauthredirect?code=…&state=…`
-3. `POST /realms/kilter/protocol/openid-connect/token` — form body:
+2. `POST /realms/kilter/login-actions/authenticate?session_code=...&execution=...&tab_id=...` -
+   form body `username`, `password` -> **302** to `com.kiltergrips:/oauthredirect?code=...&state=...`
+3. `POST /realms/kilter/protocol/openid-connect/token` - form body:
    `grant_type=authorization_code`, `code`, `code_verifier`, `redirect_uri`, `client_id=kilter`
-   → JSON:
+   -> JSON:
    ```
    { access_token (JWT ~1427 chars), expires_in: 14400, refresh_token, refresh_expires_in,
      id_token, token_type: "Bearer", scope: "openid offline_access profile email", session_state }
@@ -46,13 +46,13 @@ Other realm endpoints: `userinfo`, `logout` (end_session), `revoke`, `token/intr
 
 ---
 
-## 2. REST API — `portal.kiltergrips.com/api`
+## 2. REST API - `portal.kiltergrips.com/api`
 
 Headers: `Authorization: Bearer <token>`, `Content-Type: application/json`, `Accept-Encoding: gzip`.
-Many list endpoints accept `?top20=true` (a 20-item preview) — full/paginated variants TBD.
+Many list endpoints accept `?top20=true` (a 20-item preview) - full/paginated variants TBD.
 
 ### Write a log / ascent (fully understood)
-`POST /api/v2/logs` → `200` (text/plain body). Request JSON:
+`POST /api/v2/logs` -> `200` (text/plain body). Request JSON:
 ```json
 {
   "id": "<uuid>",
@@ -70,8 +70,8 @@ Many list endpoints accept `?top20=true` (a 20-item preview) — full/paginated 
 }
 ```
 
-### Read the logbook (fully understood — this is the ascent read path)
-`GET /api/logs` → `200`, a JSON array of the **authenticated** user's ascents. No id in the path: the
+### Read the logbook (fully understood - this is the ascent read path)
+`GET /api/logs` -> `200`, a JSON array of the **authenticated** user's ascents. No id in the path: the
 bearer token identifies the user. The server joins the climb name and current difficulty in, so no
 catalog lookup is needed. Item fields:
 ```
@@ -82,35 +82,35 @@ currentDifficultyId (int -> difficulty_grades id), climbRating? { difficultyGrad
 `climbRating`, when present, is the user's own grade/quality submission for that climb.
 
 Note the sibling form: `GET /api/logs/{userId}` returns **another** user's *public* logs (by numeric
-id). It returns `[]` for a uuid or username, and for the owner — it is not the way to read your own
+id). It returns `[]` for a uuid or username, and for the owner - it is not the way to read your own
 logbook. Use the bare `GET /api/logs`.
 
 ### Climb catalog
-`GET /api/climbs/?top20=true` → `{ items: [...], total }`. Item fields:
+`GET /api/climbs/?top20=true` -> `{ items: [...], total }`. Item fields:
 ```
-climbUuid, climbConcat ("h1348p15h1400p15…" hold+placement roles), name, userUuid, username,
+climbUuid, climbConcat ("h1348p15h1400p15..." hold+placement roles), name, userUuid, username,
 productName, productLayoutUuid, angle, currentDifficultyId, officialKilterDifficulty,
 qualityAverage, faUsername, ascentCount, isLiked, isBlocked, allowMatch,
 accumulatedHoldSetValue, frameCount, framesPace, createdAt, updatedAt
 ```
 **Grade** = `currentDifficultyId` / `officialKilterDifficulty` (Aurora-style difficulty integer, e.g.
-16, 18). Same scale family as the old Aurora `difficulty_grades` mapping (difficulty → "6C+/V5").
+16, 18). Same scale family as the old Aurora `difficulty_grades` mapping (difficulty -> "6C+/V5").
 
 ### Other endpoints seen
-- `GET /api/climbs/climbdetails/user` → `[]` (user's custom climb details; empty for this account)
-- `GET /api/climbs/customactions?newerThan=<ISO>` → `[]` (delta of like/block/etc actions)
-- `GET /api/circuits/?top20=true` → `{ items:[{circuitUuid,name,color,username,userUuid,
-  productLayoutUuid,count,isPublic,updatedAt}], total }` — **circuits = playlists**
-- `GET /api/users/find?top20=true` → `{ items:[{userUuid,username,name,profilePicture,ascents,
-  isPublic}], total }` — user search / leaderboard
-- `GET /api/climb-rating/{climbUuid}?angle=45` → large JSON (grade/quality vote distribution)
+- `GET /api/climbs/climbdetails/user` -> `[]` (user's custom climb details; empty for this account)
+- `GET /api/climbs/customactions?newerThan=<ISO>` -> `[]` (delta of like/block/etc actions)
+- `GET /api/circuits/?top20=true` -> `{ items:[{circuitUuid,name,color,username,userUuid,
+  productLayoutUuid,count,isPublic,updatedAt}], total }` - **circuits = playlists**
+- `GET /api/users/find?top20=true` -> `{ items:[{userUuid,username,name,profilePicture,ascents,
+  isPublic}], total }` - user search / leaderboard
+- `GET /api/climb-rating/{climbUuid}?angle=45` -> large JSON (grade/quality vote distribution)
 - `GET /api/followers/user` , `GET /api/followers/user/following`
 - `GET /api/users/find` (details), `GET /api/image/images/...` (avatars, gym logos)
-- `GET /api/app/versions/{version}` (e.g. `2.9.1+58`) — update check
+- `GET /api/app/versions/{version}` (e.g. `2.9.1+58`) - update check
 
 ---
 
-## 3. Bulk sync — PowerSync (`sync1.kiltergrips.com`)
+## 3. Bulk sync - PowerSync (`sync1.kiltergrips.com`)
 
 The app's local data (climbs, gyms, walls, and the user's logs) is kept in a local SQLite mirrored
 via **PowerSync** (`User-Agent: powersync-dart-core/1.7.0`). Protocol is open source
@@ -126,7 +126,7 @@ Request JSON:
     { "name": "global[]",        "after": "<opid or 0>" },
     { "name": "global_climbs[]", "after": "<opid>" },
     { "name": "global_gyms[]",   "after": "<opid>" }
-    /* +2 more buckets not yet un-truncated — likely global_walls + a user-scoped logs bucket */
+    /* +2 more buckets not yet un-truncated - likely global_walls + a user-scoped logs bucket */
   ],
   "include_checksum": true,
   "raw_data": true,
@@ -154,21 +154,21 @@ Two things this settles:
 - **There is no climb catalog (names/grades) in PowerSync.** `global_climbs[]` is hold geometry, not
   climb metadata. Climb names come from REST (`GET /api/logs` for the logbook; `/api/climbs/?name=`
   for search). There is no `GET /api/climbs/{uuid}` by-uuid endpoint.
-- **The synced `logs` rows are bare** (`climb_uuid, angle, flashed, topped, attempts, created_at` —
+- **The synced `logs` rows are bare** (`climb_uuid, angle, flashed, topped, attempts, created_at` -
   no name, no grade). The enriched, name+grade-joined logbook is the REST `GET /api/logs` above.
 
 So PowerSync is only needed for raw board data (holds/walls/geometry, e.g. to render a climb); the
 ascent read path is pure REST.
 
 ### Write checkpoint
-`GET /write-checkpoint2.json?client_id=<uuid>` → `{ "data": { "write_checkpoint": "<n>" } }`
+`GET /write-checkpoint2.json?client_id=<uuid>` -> `{ "data": { "write_checkpoint": "<n>" } }`
 Used after a write to know when the server has synced the change back.
 
 ---
 
-## Difficulty → grade table
+## Difficulty -> grade table
 
-`currentDifficultyId` / `difficultyGradeId` index the static `difficulty_grades` table (ids 1–39,
+`currentDifficultyId` / `difficultyGradeId` index the static `difficulty_grades` table (ids 1-39,
 synced in the `global[]` bucket). It is the classic Aurora scale, so each id maps across systems.
 boardlink bundles this as a constant (`KILTER_DIFFICULTY_GRADES`) rather than syncing it.
 
@@ -183,14 +183,14 @@ boardlink bundles this as a constant (`KILTER_DIFFICULTY_GRADES`) rather than sy
 | 22 | 7A/V6 | 7c | 5.12d | | 34 | 9A/V17 | 9c | 5.15d |
 | 23 | 7A+/V7 | 7c+ | 5.13a | | 39 | 9C+/V22 | 10b+ | 5.17a |
 
-(Abridged; ids 1–39 are contiguous. Full table in `packages/core/src/kilter.ts`.)
+(Abridged; ids 1-39 are contiguous. Full table in `packages/core/src/kilter.ts`.)
 
 ## Resolved / remaining
 
-- **Read path — done.** The logbook is `GET /api/logs` (enriched with name + `currentDifficultyId`);
+- **Read path - done.** The logbook is `GET /api/logs` (enriched with name + `currentDifficultyId`);
   grades come from the bundled difficulty table. No PowerSync needed for ascents.
-- **PowerSync buckets — done.** `buckets` is resumption state, not a selector; `global_climbs[]` is
+- **PowerSync buckets - done.** `buckets` is resumption state, not a selector; `global_climbs[]` is
   hold geometry, not climb metadata; the user's `logs` sync bare (no name/grade).
-- **Difficulty mapping — done.** Table above.
+- **Difficulty mapping - done.** Table above.
 - **Still open (not needed for boardlink):** pagination for `/api/climbs/`, `/api/circuits/`,
   `/api/users/find` beyond `top20`; the `climbConcat` hold-role encoding for rendering climbs.

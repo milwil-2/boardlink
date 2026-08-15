@@ -11,12 +11,12 @@ blank Tension climb names.
 `boardlink.db` downloads the board's bundled sqlite catalog to a local cache and resolves climb data
 from it, cache-first:
 
-- `download_board_db(board, dest=None, force=False) -> str` — fetch the APK, extract
+- `download_board_db(board, dest=None, force=False) -> str` - fetch the APK, extract
   `assets/db.sqlite3` to the cache, return the path. Reuses an existing file unless `force=True`.
-- `open_board_db(path)` — read-only connection context manager.
-- `climb_names(path_or_conn, uuids) -> {uuid: name}` — one parameterized query for a batch of uuids;
+- `open_board_db(path)` - read-only connection context manager.
+- `climb_names(path_or_conn, uuids) -> {uuid: name}` - one parameterized query for a batch of uuids;
   `climb_name(path_or_conn, uuid)` is the single-lookup convenience.
-- `climb_frames(path_or_conn, uuids) -> {uuid: frames}` — the `p<placement>r<role>` layout string
+- `climb_frames(path_or_conn, uuids) -> {uuid: frames}` - the `p<placement>r<role>` layout string
   (grades are **not** in the `climbs` table; they live in `climb_stats` and are out of scope here).
 
 ### `climbs` table schema (verified against a downloaded catalog)
@@ -36,15 +36,15 @@ connect_tension(username=None, password=None, *, token=None, db_path=None, resol
 
 Precedence, highest first:
 
-- `db_path=...` — always forces the offline-catalog path, using that catalog file directly.
-- `resolve_names="web"` — the lightweight web resolver (see below). Ignored when `db_path` is set.
-- `resolve_names="db"` (or the legacy `True`) — download the ~87MB catalog (cache-first) if absent,
+- `db_path=...` - always forces the offline-catalog path, using that catalog file directly.
+- `resolve_names="web"` - the lightweight web resolver (see below). Ignored when `db_path` is set.
+- `resolve_names="db"` (or the legacy `True`) - download the ~87MB catalog (cache-first) if absent,
   then resolve offline. After the sync all `climb_uuid`s are resolved in one batch query.
-- `resolve_names=False`/`None` (default) — resolve only if a catalog is already cached; else blank.
+- `resolve_names=False`/`None` (default) - resolve only if a catalog is already cached; else blank.
 
 Either way, resolved names are written to `Ascent.climb_name`; unresolved uuids stay blank.
 
-### `web` — per-climb page scrape (`webnames` module)
+### `web` - per-climb page scrape (`webnames` module)
 
 Each Aurora board serves a public, unauthenticated page per climb at `<web_host>/climbs/<uuid>`
 (Tension: `https://tensionboardapp2.com`) whose climb name is in both the `<title>` and `<h1>`.
@@ -61,18 +61,18 @@ Caching names is safe because a climb's name is static.
 
 ### Trade-offs
 
-- **`web`** — no big download; N small, cacheable HTTP requests (one per uncached climb). Best for a
+- **`web`** - no big download; N small, cacheable HTTP requests (one per uncached climb). Best for a
   small logbook or when you cannot afford the ~87MB pull. Downsides: it depends on the public web
   page's HTML staying scrapeable (a layout change could break extraction), and it is online-only for
   the first sight of each new climb. After the first resolve, cached climbs cost zero requests.
-- **`db`** — one ~87MB download, then zero per-climb requests and fully offline, with the whole catalog
+- **`db`** - one ~87MB download, then zero per-climb requests and fully offline, with the whole catalog
   available (names, frames, layout metadata). Best for large logbooks or repeated/offline use.
   Downside: the upfront download and a point-in-time snapshot that goes stale (see caveats above).
 
 ## Logbook caching is the application's job
 
 Only the static name cache is stored by the connector; the logbook itself is intentionally not cached
-— the connector stays stateless and re-syncs on each call, leaving logbook persistence to the
+- the connector stays stateless and re-syncs on each call, leaving logbook persistence to the
 application. Aurora's incremental `/sync` (a `since`-date parameter, currently pinned to the epoch) is
 the future lever for cheap delta syncs once an app keeps its own logbook store.
 
@@ -81,11 +81,11 @@ the future lever for cheap delta syncs once an app keeps its own logbook store.
 The defaults above assume a CLI/desktop process with a writable `~/.cache`. Two knobs make the caches
 work in a deploy (serverless, multi-worker servers) instead.
 
-Both the name cache and the catalog are **global, static** data — a climb's name and layout are the
-same for every user, not per-account — so one shared backing store safely serves all of an app's
+Both the name cache and the catalog are **global, static** data - a climb's name and layout are the
+same for every user, not per-account - so one shared backing store safely serves all of an app's
 users. (The per-user logbook is a separate concern; see below.)
 
-### `BOARDLINK_CACHE_DIR` — relocate the file caches
+### `BOARDLINK_CACHE_DIR` - relocate the file caches
 
 `_cache_dir()` (which both `default_db_path` and `default_names_path` flow through) resolves the base
 directory with this precedence, highest first:
@@ -97,10 +97,10 @@ directory with this precedence, highest first:
 
 Point `BOARDLINK_CACHE_DIR` at a **persistent, writable volume** so a server keeps the ~87MB catalog
 and the name JSON across restarts instead of re-downloading on every cold start. Serverless functions
-with an ephemeral/read-only filesystem should avoid the `db` (catalog) path entirely — the 87MB pull
-is a non-starter on cold start — and use the `web` resolver with a shared name cache (below).
+with an ephemeral/read-only filesystem should avoid the `db` (catalog) path entirely - the 87MB pull
+is a non-starter on cold start - and use the `web` resolver with a shared name cache (below).
 
-### Pluggable `NameCache` — back names with Redis/DB/S3
+### Pluggable `NameCache` - back names with Redis/DB/S3
 
 The `web` resolver reads and writes names through a tiny, dependency-free protocol
 (`boardlink.cache.NameCache`), so a deploy can swap the default JSON file for a shared store without
@@ -112,7 +112,7 @@ class NameCache(Protocol):
     def set_many(self, mapping: dict[str, str]) -> None: ...
 ```
 
-The default implementation is `FileNameCache(path)` — the JSON behavior described above (atomic
+The default implementation is `FileNameCache(path)` - the JSON behavior described above (atomic
 temp + `os.replace`, missing/corrupt file treated as empty, `ensure_ascii=False`, misses never
 stored). To use your own store, implement the two methods and inject it:
 
@@ -134,12 +134,12 @@ resolve_climb_names("tension", uuids, cache=RedisNameCache(redis_client))
 
 `cache=` takes precedence over `cache_path=`; when neither is given the default `FileNameCache` at the
 per-board path is used, so existing `cache_path=`/`db_path=` callers behave exactly as before.
-boardlink ships **no** Redis/S3 dependency — the app supplies its own implementation.
+boardlink ships **no** Redis/S3 dependency - the app supplies its own implementation.
 
 ### Logbook caching stays the app's job
 
 Only the global-static name/catalog caches are stored by boardlink. The per-user logbook is
-intentionally **not** cached — the connector is stateless and re-syncs on each call, leaving logbook
+intentionally **not** cached - the connector is stateless and re-syncs on each call, leaving logbook
 persistence to the application. Aurora's incremental `/sync` (a `since`-date parameter, currently
 pinned to the epoch) is the future lever for cheap delta syncs once an app keeps its own logbook
 store. The TypeScript SDK implements the same `db`, `webnames`, and `NameCache` surface (see below).
