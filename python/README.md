@@ -28,6 +28,29 @@ Kilter uses the new kiltergrips.com backend (Keycloak auth + a REST logbook); Te
 API; MoonBoard uses its own cookie/CSRF session. A password is used once to authenticate and is
 never stored — persist only the returned token.
 
+## Safety: untrusted board data
+
+Climb names and comments are free text controlled by other users of the board, not by you. If you
+feed them into an LLM prompt, a log line, or a shell, treat them as untrusted input. `boardlink`
+ships small helpers (mirrored byte-for-byte in the TypeScript SDK) to make that easy:
+
+```python
+from boardlink import strip_raw, neutralize_for_prompt, UNTRUSTED_ASCENT_FIELDS
+
+# Drop the raw backend passthrough before storing/forwarding ascents.
+ascents = strip_raw(result.ascents)
+
+# Wrap free text in fenced, control-char-stripped, NFKC-normalized delimiters before
+# putting it in an LLM prompt.
+safe = neutralize_for_prompt(ascent.comment or "")
+
+# The fields that carry attacker-influenced text, if you want to sanitize your own way.
+print(UNTRUSTED_ASCENT_FIELDS)  # ("climb_name", "comment", "raw")
+```
+
+See [`docs/security.md`](https://github.com/milwil-2/boardlink/blob/main/docs/security.md) for the
+threat model and why these are contract-tested for byte-identical output across both languages.
+
 ## Develop
 
 ```bash

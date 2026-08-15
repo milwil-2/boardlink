@@ -105,6 +105,23 @@ for a in result.ascents:
     print(a.date, a.grade, a.v_grade)
 ```
 
+## Security
+
+Wrapping an unofficial API means you hold users' **real board passwords** — there's no OAuth, no
+scopes, no revocation UI — so every consumer inherits credential-custodian duties. In short:
+
+- The returned `token` is a long-lived credential: keep it server-side and encrypted, never log it
+  or ship it to a browser.
+- `climbName`, `comment`, and `raw` are attacker-writable free text — untrusted input. Run it through
+  `neutralizeForPrompt` / `neutralize_for_prompt` before any LLM (defense-in-depth, not a guarantee).
+- The server strips each ascent's `raw` by default (`includeRaw: true` opts back in); use `stripRaw`
+  / `strip_raw` when forwarding core results across a trust boundary.
+- Don't run an open credential proxy: set the server's `auth` and `rateLimit` options before exposing
+  `POST /:board`, and put it behind a reverse proxy for TLS.
+
+See **[docs/security.md](docs/security.md)** for the full threat model, mitigations, and an
+implementer's checklist.
+
 ## Responsible use
 
 boardlink exists for interoperability — getting your own data out of an app you have an account with.

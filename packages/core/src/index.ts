@@ -13,6 +13,7 @@ export * from "./moon.js";
 export * from "./cache.js";
 export * from "./db.js";
 export * from "./webnames.js";
+export * from "./safety.js";
 
 /** Connect to Tension (still on the Aurora backend) and pull the normalized logbook. */
 export const connectTension = (auth: BoardAuth, opts?: ConnectOptions): Promise<ConnectResult> =>

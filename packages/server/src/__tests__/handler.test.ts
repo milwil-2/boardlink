@@ -50,4 +50,36 @@ describe("handleBoardRequest", () => {
     expect(res.status).toBe(401);
     expect(res.body.reauth).toBe(true);
   });
+
+  const auroraFetch = (async (url: string) =>
+    String(url).endsWith("/sessions")
+      ? okJson({ session: "TOK" })
+      : okJson({
+          ascents: [{ climbed_at: "2026-05-01 19:30:00", difficulty: 15 }],
+          difficulty_grades: [{ difficulty: 15, boulder_name: "6C+/V5" }],
+        })) as unknown as typeof fetch;
+
+  it("strips each ascent's raw backend record by default", async () => {
+    const res = await handleBoardRequest(
+      "tension",
+      { username: "u", password: "p" },
+      { fetch: auroraFetch },
+    );
+    expect(res.status).toBe(200);
+    const ascents = res.body.ascents as Array<Record<string, unknown>>;
+    expect(ascents.length).toBe(1);
+    // Property absent, not undefined-valued.
+    expect("raw" in ascents[0]!).toBe(false);
+  });
+
+  it("preserves raw when includeRaw is set", async () => {
+    const res = await handleBoardRequest(
+      "tension",
+      { username: "u", password: "p" },
+      { fetch: auroraFetch, includeRaw: true },
+    );
+    expect(res.status).toBe(200);
+    const ascents = res.body.ascents as Array<Record<string, unknown>>;
+    expect(ascents[0]!.raw).toBeDefined();
+  });
 });

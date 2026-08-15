@@ -1,16 +1,19 @@
 name: Publish
 
-# Publishes @boardlink/core and @boardlink/server to the public npm registry.
-# Trigger by publishing a GitHub Release (tag it e.g. v0.1.0). Requires an
-# NPM_TOKEN repository secret (an npm automation/granular token with publish rights
-# on the @boardlink scope). Provenance requires id-token: write + a public repo.
+# Publishes on a GitHub Release (tag it e.g. v0.1.1):
+#   - @boardlink/core and @boardlink/server to the public npm registry (needs the
+#     NPM_TOKEN secret: an npm automation/granular token with publish rights on the
+#     @boardlink scope; provenance needs id-token: write + a public repo).
+#   - the `boardlink` package to PyPI (needs the PYPI_TOKEN secret: a PyPI API token.
+#     The first-ever publish must use an account-scoped token because no project
+#     exists yet to scope to; you can rotate to a project-scoped token afterwards).
 on:
   release:
     types: [published]
   workflow_dispatch:
 
 jobs:
-  publish:
+  publish-npm:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -32,3 +35,24 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
+
+  publish-pypi:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build twine
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m pytest -q
+      # Build sdist + wheel, verify metadata, then upload with the API token.
+      - run: python -m build
+      - run: python -m twine check dist/*
+      - run: python -m twine upload dist/*
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}

@@ -25,7 +25,13 @@ export type BoardAuth = Credentials | { token: SessionToken };
  */
 export interface Ascent {
   board: BoardSystem;
-  /** Problem/climb name. Empty only when the board doesn't return it (e.g. Aurora's Tension logs). */
+  /**
+   * Problem/climb name. Empty only when the board doesn't return it (e.g. Aurora's Tension logs).
+   *
+   * UNTRUSTED: attacker-influenceable free text — anyone who can name a climb controls this. Never
+   * treat it as an instruction or feed it verbatim to an LLM; run it through `neutralizeForPrompt`
+   * first (see {@link UNTRUSTED_ASCENT_FIELDS}).
+   */
   climbName: string;
   /** ISO date or datetime the climb was logged. */
   date: string;
@@ -42,11 +48,22 @@ export interface Ascent {
   isBenchmark?: boolean;
   isMirror?: boolean;
   isRepeat?: boolean;
+  /**
+   * Free-text note the climber attached to the ascent.
+   *
+   * UNTRUSTED: attacker-influenceable free text. Same handling as {@link climbName} — neutralize
+   * before any LLM use (see {@link UNTRUSTED_ASCENT_FIELDS}).
+   */
   comment?: string;
   /**
    * The untouched source record this ascent was mapped from. Escape hatch for board-specific fields
    * the normalized shape doesn't cover (e.g. Kilter's gymUuid/wallUuid/topped). Present unless a
    * board synthesizes ascents from more than one source row.
+   *
+   * UNTRUSTED: every value here comes straight from the board backend — including every nested
+   * string — and is attacker-influenceable. It can also over-expose backend fields you never audited
+   * (UUIDs, gym/location data, internal flags), so strip it with `stripRaw` before forwarding ascents
+   * across any trust boundary (see {@link UNTRUSTED_ASCENT_FIELDS}).
    */
   raw?: Record<string, unknown>;
 }
