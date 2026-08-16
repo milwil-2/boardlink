@@ -2,14 +2,15 @@ import type { BoardAuth, BoardSystem, ConnectOptions, ConnectResult } from "./ty
 import { BoardError } from "./types.js";
 import { connectAurora } from "./aurora.js";
 import { connectKilter } from "./kilter.js";
-import { connectMoonboard } from "./moon.js";
 
 export * from "./types.js";
 export * from "./grades.js";
 export * from "./http.js";
 export * from "./aurora.js";
 export * from "./kilter.js";
-export * from "./moon.js";
+// MoonBoard support is temporarily removed (its API was retired); see
+// https://github.com/milwil-2/boardlink/issues/1. Its pure mappers are intentionally NOT re-exported
+// here to keep them off the public surface while the connector is out.
 export * from "./cache.js";
 export * from "./db.js";
 export * from "./webnames.js";
@@ -19,11 +20,13 @@ export * from "./safety.js";
 export const connectTension = (auth: BoardAuth, opts?: ConnectOptions): Promise<ConnectResult> =>
   connectAurora("tension", auth, opts);
 
-export { connectKilter, connectMoonboard, connectAurora };
+export { connectKilter, connectAurora };
 
 /**
  * Dispatch to the right connector by board name. Note: Kilter uses the new kiltergrips.com backend
- * (it left Aurora in 2025); Tension is still Aurora; MoonBoard is independent.
+ * (it left Aurora in 2025); Tension is still Aurora. MoonBoard is temporarily unsupported (its API
+ * was retired) and rejects with a `retired` BoardError — see
+ * https://github.com/milwil-2/boardlink/issues/1.
  */
 export function connectBoard(
   board: BoardSystem,
@@ -36,7 +39,13 @@ export function connectBoard(
     case "tension":
       return connectAurora("tension", auth, opts);
     case "moonboard":
-      return connectMoonboard(auth, opts);
+      throw new BoardError(
+        "retired",
+        "MoonBoard support is temporarily unavailable: its web API was decommissioned and the new " +
+          "app backend is gated by Apple App Attest. Track re-enablement at " +
+          "https://github.com/milwil-2/boardlink/issues/1",
+        "moonboard",
+      );
     default:
       throw new BoardError("unexpected-response", `unknown board: ${board as string}`);
   }

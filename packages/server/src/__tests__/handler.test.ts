@@ -11,6 +11,12 @@ describe("handleBoardRequest", () => {
     expect(res.body.code).toBe("unexpected-response");
   });
 
+  it("answers 410 for the retired MoonBoard connector", async () => {
+    const res = await handleBoardRequest("moonboard", { username: "u", password: "p" });
+    expect(res.status).toBe(410);
+    expect(res.body.code).toBe("retired");
+  });
+
   it("proxies a successful Aurora login+sync", async () => {
     const fakeFetch = (async (url: string) =>
       String(url).endsWith("/sessions")

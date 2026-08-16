@@ -1,6 +1,29 @@
 export const DEFAULT_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36";
 
+// Cloudflare's interstitial. `cf-mitigated: challenge` is the explicit signal; the body markers are
+// the fallback for edges that omit it. Deliberately narrow: a plain 403 from the board's own app
+// (a lapsed session) must NOT read as a challenge, or a re-login would be misreported as blocked.
+const CHALLENGE_BODY = /Just a moment|cf-chl|cf_chl_opt|Enable JavaScript and cookies/i;
+
+export function isBotChallenge(res: { status: number; headers: Headers }, body = ""): boolean {
+  if (res.headers.get("cf-mitigated") === "challenge") return true;
+  if (res.status !== 403 && res.status !== 503) return false;
+  return CHALLENGE_BODY.test(body);
+}
+
+// Body-aware variant: only pays for reading the body when the status could plausibly be a
+// challenge. Clones first, so the caller can still consume the original response.
+export async function detectBotChallenge(res: Response): Promise<boolean> {
+  if (res.headers.get("cf-mitigated") === "challenge") return true;
+  if (res.status !== 403 && res.status !== 503) return false;
+  const body = await res
+    .clone()
+    .text()
+    .catch(() => "");
+  return CHALLENGE_BODY.test(body);
+}
+
 // A cookie jar (name -> value) that serializes back into a Cookie header, for MoonBoard's session.
 export type CookieJar = Map<string, string>;
 

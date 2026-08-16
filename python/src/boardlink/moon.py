@@ -2,15 +2,13 @@ from __future__ import annotations
 
 import re
 from typing import Optional
-from urllib.parse import urlencode
-
-import requests
 
 from .grades import parse_v_grade
 from .types import Ascent, BoardError, ConnectResult
 
-# MoonBoard uses a cookie/CSRF session login, then a paginated logbook filtered by board setup id.
-MOON_HOST = "https://moonboard.com"
+# MoonBoard's own web logbook API (a cookie/CSRF session) has been decommissioned; its live connector
+# is retired below. The pure mappers here are I/O-free and still guarded by the golden-fixture
+# contract test, so they stay. Board configurations kept for reference by the mappers.
 MOON_BOARD_IDS = {
     "MoonBoard 2016": 1,
     "MoonBoard Masters 2017": 15,
@@ -19,14 +17,29 @@ MOON_BOARD_IDS = {
     "MoonBoard 2024": 21,
 }
 _ANGLE = 40
-_PAGE = 40
-_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+
+# Cloudflare's interstitial. "cf-mitigated: challenge" is the explicit signal; the body markers are
+# the fallback for edges that omit it. Deliberately narrow: a plain 403 from a board's own app (a
+# lapsed session) must NOT read as a challenge. Kept as a general utility for other connectors.
+_CHALLENGE_BODY = re.compile(r"Just a moment|cf-chl|cf_chl_opt|Enable JavaScript and cookies", re.I)
 
 _ATTEMPTS = {"Flashed": 1, "2nd try": 2, "3rd try": 3, "more than 3 tries": 4, "Project": None}
 _MONTHS = {
     "jan": "01", "feb": "02", "mar": "03", "apr": "04", "may": "05", "jun": "06",
     "jul": "07", "aug": "08", "sep": "09", "oct": "10", "nov": "11", "dec": "12",
 }
+
+
+def is_bot_challenge(response) -> bool:
+    """True if an edge (Cloudflare) answered with a bot challenge rather than the board itself.
+
+    Accepts anything response-shaped: needs ``status_code``, ``headers``, and ``text``.
+    """
+    if (response.headers.get("cf-mitigated") or "").lower() == "challenge":
+        return True
+    if response.status_code not in (403, 503):
+        return False
+    return bool(_CHALLENGE_BODY.search(response.text or ""))
 
 
 def parse_moon_tries(label: Optional[str]) -> Optional[int]:
@@ -88,98 +101,23 @@ def moon_entries_to_ascents(entries: list) -> list:
     return out
 
 
-def connect_moonboard(username: Optional[str] = None, password: Optional[str] = None, *, token: Optional[str] = None) -> ConnectResult:
-    session = requests.Session()
-    session.headers["User-Agent"] = _UA
-    if token:
-        for part in token.split(";"):
-            if "=" in part:
-                k, v = part.split("=", 1)
-                session.cookies.set(k.strip(), v.strip())
-    else:
-        _login(session, username, password)
-
-    entries = _fetch_all(session)
-    if entries is None:
-        raise BoardError("session-expired", "session expired", "moonboard")
-    return ConnectResult("moonboard", _cookie_str(session), moon_entries_to_ascents(entries))
+# MoonBoard support is temporarily removed. Its web logbook API (the cookie/CSRF flow the network
+# code here used to drive) was decommissioned, and the Moon Climbing app's replacement backend is
+# gated by Firebase App Check / Apple App Attest, which a third-party client cannot satisfy. The
+# pure mappers above are kept because the golden-fixture contract test still exercises them.
+# See: https://github.com/milwil-2/boardlink/issues/1
+_RETIRED_MESSAGE = (
+    "MoonBoard support is temporarily unavailable: its web API was decommissioned and the new app "
+    "backend is gated by Apple App Attest. Track re-enablement at "
+    "https://github.com/milwil-2/boardlink/issues/1"
+)
 
 
-def _login(session: requests.Session, username, password) -> None:
-    if not username or not password:
-        raise BoardError("missing-credentials", "username and password required", "moonboard")
-    try:
-        page = session.get(f"{MOON_HOST}/account/login", timeout=30)
-    except requests.RequestException as e:
-        raise BoardError("unreachable", "could not reach MoonBoard", "moonboard") from e
-    if not page.ok:
-        raise BoardError("unexpected-response", "could not load login page", "moonboard")
-    token = extract_input_value(page.text, "__RequestVerificationToken")
-    form_key = extract_input_value(page.text, "form_key") or ""
-    if not token:
-        raise BoardError("unexpected-response", "login form changed (no CSRF token)", "moonboard")
-
-    try:
-        r = session.post(
-            f"{MOON_HOST}/Account/login",
-            data={"Login.Username": username, "Login.Password": password, "__RequestVerificationToken": token, "form_key": form_key},
-            headers={"Referer": f"{MOON_HOST}/account/login"},
-            allow_redirects=False,
-            timeout=30,
-        )
-    except requests.RequestException as e:
-        raise BoardError("unreachable", "could not reach MoonBoard", "moonboard") from e
-
-    redirected = 300 <= r.status_code < 400
-    has_auth = any(re.search(r"auth|aspnet|moon", c.name, re.I) for c in session.cookies)
-    if not redirected and not has_auth:
-        raise BoardError("bad-credentials", "Incorrect MoonBoard email or password.", "moonboard")
-
-
-def _logbook_body(setup_id: int, page: int, page_size: int = _PAGE) -> str:
-    return urlencode({"sort": "", "page": page, "pageSize": page_size, "group": "", "filter": f"setupId~eq~'{setup_id}'"})
-
-
-def _fetch_all(session: requests.Session) -> Optional[list]:
-    entries: list = []
-    saw_valid = False
-    headers = {"X-Requested-With": "XMLHttpRequest", "Content-Type": "application/x-www-form-urlencoded"}
-
-    for setup_id in MOON_BOARD_IDS.values():
-        for page in range(1, 26):
-            r = session.post(f"{MOON_HOST}/Logbook/GetLogbook", data=_logbook_body(setup_id, page), headers=headers, timeout=30)
-            if r.status_code in (401, 403):
-                return entries if saw_valid else None
-            if not r.ok:
-                break
-            try:
-                data = r.json()
-            except ValueError:
-                return entries if saw_valid else None
-            saw_valid = True
-            rows = data.get("Data") or []
-            entries.extend(_expand_rows(session, rows, headers))
-            total = data.get("Total", len(rows))
-            if not rows or total <= _PAGE * page:
-                break
-    return entries
-
-
-def _expand_rows(session: requests.Session, rows: list, headers: dict) -> list:
-    out = []
-    for row in rows:
-        if row.get("Problem"):
-            out.append(row)
-        elif row.get("Id") is not None:
-            r = session.post(f"{MOON_HOST}/Logbook/GetLogbookEntries/{row['Id']}", data=_logbook_body(0, 1), headers=headers, timeout=30)
-            if not r.ok:
-                continue
-            try:
-                out.extend(r.json().get("Data") or [])
-            except ValueError:
-                pass
-    return out
-
-
-def _cookie_str(session: requests.Session) -> str:
-    return "; ".join(f"{c.name}={c.value}" for c in session.cookies)
+def connect_moonboard(
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+    *,
+    token: Optional[str] = None,
+    user_agent: Optional[str] = None,
+) -> ConnectResult:
+    raise BoardError("retired", _RETIRED_MESSAGE, "moonboard")

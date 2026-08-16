@@ -1,12 +1,21 @@
 # MoonBoard app API (reverse-engineered)
 
-MoonBoard does not use the Aurora or Kilter backends. It runs a conventional ASP.NET web app at
-**`moonboard.com`** with a cookie/CSRF session login and a paginated logbook endpoint.
+> **⚠️ RETIRED — this API no longer exists, and MoonBoard support is temporarily removed from
+> boardlink.** The `moonboard.com` web app documented below has been decommissioned: every
+> `/Logbook/*` route now returns 404, the site sits behind a Cloudflare challenge, and a signed-in
+> dashboard shows a "this website is being retired" notice pointing users to the Moon Climbing app.
+> The app's replacement backend (`rest-v1.moonclimbing.com/_bs_api/v1/…`, a Flutter client over
+> Firebase Auth) is gated by **Firebase App Check with Apple App Attest**, which a third-party client
+> cannot satisfy. `connect_moonboard` / `connectMoonboard` therefore raise a `retired` error.
+> Re-enablement, and the one open question that decides whether it's feasible at all (is App Check
+> *enforced* or *monitoring-only*?), are tracked in
+> [issue #1](https://github.com/milwil-2/boardlink/issues/1). Everything below documents the old,
+> now-dead web API and is kept for historical reference only.
 
-> **Verification status: not live-verified.** The connector was built and tested against captured and
-> mocked payloads; no MoonBoard account was available at test time. Treat the shapes below as
-> confirmed against those fixtures but not yet exercised end to end against the live site. This is
-> called out honestly rather than presented as fully proven.
+---
+
+MoonBoard did not use the Aurora or Kilter backends. It ran a conventional ASP.NET web app at
+**`moonboard.com`** with a cookie/CSRF session login and a paginated logbook endpoint.
 
 ---
 

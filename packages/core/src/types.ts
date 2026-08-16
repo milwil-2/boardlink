@@ -107,7 +107,21 @@ export type BoardErrorCode =
   | "bad-credentials"
   | "session-expired"
   | "unreachable"
-  | "unexpected-response";
+  | "unexpected-response"
+  /**
+   * The board's edge (e.g. Cloudflare) served a bot challenge instead of the real response, so the
+   * request never reached the board. Credentials are untouched and unverified. Retrying the same
+   * way will not help: the challenge needs a real browser. Log in manually, copy the resulting
+   * cookies (including any `cf_clearance`), and pass them as `token` with the same `userAgent` the
+   * browser used - a `cf_clearance` cookie is bound to the User-Agent and IP that earned it.
+   */
+  | "blocked"
+  /**
+   * The board's own API was decommissioned, so this connector cannot function regardless of
+   * credentials. Distinct from `unreachable` (transient) and `blocked` (a solvable edge challenge):
+   * there is nothing the caller can do until the connector is rewritten against the new backend.
+   */
+  | "retired";
 
 /** Typed error for all board failures, so callers can branch on {@link code} not string matching. */
 export class BoardError extends Error {
