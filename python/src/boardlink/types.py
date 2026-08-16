@@ -45,11 +45,6 @@ BoardErrorCode = Literal[
     "session-expired",
     "unreachable",
     "unexpected-response",
-    # The board's edge (e.g. Cloudflare) served a bot challenge instead of the real response, so the
-    # request never reached the board and the credentials were neither sent nor verified. Retrying
-    # identically will not help: log in via a browser and pass its cookies (including cf_clearance)
-    # as `token`, with the same user_agent the browser used - cf_clearance is bound to UA and IP.
-    "blocked",
     # The board's own API was decommissioned, so this connector cannot function regardless of
     # credentials. Nothing the caller can do until it is rewritten against the new backend.
     "retired",

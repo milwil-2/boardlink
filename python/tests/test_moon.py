@@ -1,6 +1,5 @@
 from boardlink.moon import (
     extract_input_value,
-    is_bot_challenge,
     moon_entries_to_ascents,
     moon_entry_to_ascent,
     parse_moon_date,
@@ -54,24 +53,3 @@ def test_batch_drops_projects_and_undated():
     ])
     assert len(ascents) == 1
     assert ascents[0].v_grade == 7
-
-
-class _Resp:
-    def __init__(self, status_code, headers=None, text=""):
-        self.status_code = status_code
-        self.headers = headers or {}
-        self.text = text
-
-
-def test_detects_cloudflare_challenge_by_header_or_body():
-    assert is_bot_challenge(_Resp(403, {"cf-mitigated": "challenge"}))
-    assert is_bot_challenge(_Resp(503, {}, "<title>Just a moment...</title>"))
-    assert is_bot_challenge(_Resp(403, {}, "window._cf_chl_opt = {}"))
-
-
-def test_plain_app_responses_are_not_challenges():
-    # A lapsed session (403 from MoonBoard itself) must stay session-expired, not blocked.
-    assert not is_bot_challenge(_Resp(403, {}, "Forbidden"))
-    assert not is_bot_challenge(_Resp(401, {}, ""))
-    # A logbook page that merely mentions the phrase is still a 200 from the app.
-    assert not is_bot_challenge(_Resp(200, {}, "Just a moment while we load your logbook"))

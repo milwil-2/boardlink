@@ -25,8 +25,6 @@ const STATUS_FOR: Record<string, number> = {
   "session-expired": 401,
   "unreachable": 502,
   "unexpected-response": 502,
-  // Upstream refused us, not the caller: 502 would imply a malformed board response.
-  "blocked": 403,
   // The board's API is gone; 410 Gone is the honest status for a permanently removed connector.
   "retired": 410,
 };

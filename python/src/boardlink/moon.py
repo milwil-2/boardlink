@@ -18,28 +18,11 @@ MOON_BOARD_IDS = {
 }
 _ANGLE = 40
 
-# Cloudflare's interstitial. "cf-mitigated: challenge" is the explicit signal; the body markers are
-# the fallback for edges that omit it. Deliberately narrow: a plain 403 from a board's own app (a
-# lapsed session) must NOT read as a challenge. Kept as a general utility for other connectors.
-_CHALLENGE_BODY = re.compile(r"Just a moment|cf-chl|cf_chl_opt|Enable JavaScript and cookies", re.I)
-
 _ATTEMPTS = {"Flashed": 1, "2nd try": 2, "3rd try": 3, "more than 3 tries": 4, "Project": None}
 _MONTHS = {
     "jan": "01", "feb": "02", "mar": "03", "apr": "04", "may": "05", "jun": "06",
     "jul": "07", "aug": "08", "sep": "09", "oct": "10", "nov": "11", "dec": "12",
 }
-
-
-def is_bot_challenge(response) -> bool:
-    """True if an edge (Cloudflare) answered with a bot challenge rather than the board itself.
-
-    Accepts anything response-shaped: needs ``status_code``, ``headers``, and ``text``.
-    """
-    if (response.headers.get("cf-mitigated") or "").lower() == "challenge":
-        return True
-    if response.status_code not in (403, 503):
-        return False
-    return bool(_CHALLENGE_BODY.search(response.text or ""))
 
 
 def parse_moon_tries(label: Optional[str]) -> Optional[int]:
@@ -118,6 +101,5 @@ def connect_moonboard(
     password: Optional[str] = None,
     *,
     token: Optional[str] = None,
-    user_agent: Optional[str] = None,
 ) -> ConnectResult:
     raise BoardError("retired", _RETIRED_MESSAGE, "moonboard")

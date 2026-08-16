@@ -79,7 +79,7 @@ export interface ConnectResult {
 export interface ConnectOptions {
   /** Inject a fetch implementation (for tests, proxies, or non-global-fetch runtimes). */
   fetch?: typeof fetch;
-  /** Override the User-Agent header (MoonBoard is picky about it). */
+  /** Override the User-Agent header sent to the board. */
   userAgent?: string;
   /**
    * Tension only. Force the offline-catalog path, resolving the climb names Aurora's sync omits from
@@ -109,17 +109,9 @@ export type BoardErrorCode =
   | "unreachable"
   | "unexpected-response"
   /**
-   * The board's edge (e.g. Cloudflare) served a bot challenge instead of the real response, so the
-   * request never reached the board. Credentials are untouched and unverified. Retrying the same
-   * way will not help: the challenge needs a real browser. Log in manually, copy the resulting
-   * cookies (including any `cf_clearance`), and pass them as `token` with the same `userAgent` the
-   * browser used - a `cf_clearance` cookie is bound to the User-Agent and IP that earned it.
-   */
-  | "blocked"
-  /**
    * The board's own API was decommissioned, so this connector cannot function regardless of
-   * credentials. Distinct from `unreachable` (transient) and `blocked` (a solvable edge challenge):
-   * there is nothing the caller can do until the connector is rewritten against the new backend.
+   * credentials. Distinct from `unreachable` (transient): there is nothing the caller can do until
+   * the connector is rewritten against the new backend.
    */
   | "retired";
 
