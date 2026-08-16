@@ -1,15 +1,13 @@
 import type { Ascent, BoardAuth, ConnectOptions, ConnectResult } from "./types.js";
 import { BoardError } from "./types.js";
 import { parseVGrade } from "./grades.js";
-import { addSetCookies, DEFAULT_UA, jarFromHeader, jarToHeader, type CookieJar } from "./http.js";
 
-// MoonBoard runs its own backend (not Aurora): a cookie/CSRF session login at moonboard.com, then a
-// paginated logbook API filtered by board setup id. The pure helpers are I/O-free; connectMoonboard
-// runs the handshake and returns a serialized cookie jar as its reusable token.
+// MoonBoard's own web logbook API (a cookie/CSRF session at moonboard.com) has been decommissioned;
+// its live connector is retired below (see the issue link). The pure mappers here are I/O-free and
+// still guarded by the golden-fixture contract test, so they stay.
 
-export const MOON_HOST = "https://moonboard.com";
-
-// Physical MoonBoard configurations and their logbook setup ids. We sweep all of them per user.
+// Physical MoonBoard configurations and their logbook setup ids, kept for reference by the mappers
+// and any future connector.
 export const MOON_BOARD_IDS: Record<string, number> = {
   "MoonBoard 2016": 1,
   "MoonBoard Masters 2017": 15,
@@ -133,135 +131,18 @@ export function moonEntriesToAscents(entries: MoonEntry[]): Ascent[] {
   return out;
 }
 
-export async function connectMoonboard(auth: BoardAuth, opts: ConnectOptions = {}): Promise<ConnectResult> {
-  const doFetch = opts.fetch ?? fetch;
-  const ua = opts.userAgent ?? DEFAULT_UA;
+// MoonBoard support is temporarily removed. Its web logbook API (the cookie/CSRF flow this file's
+// pure helpers were built for) was decommissioned, and the Moon Climbing app's replacement backend
+// is gated by Firebase App Check / Apple App Attest, which a third-party client cannot satisfy.
+// The mappers above are kept because the golden-fixture contract test still exercises them and a
+// future connector will likely reuse the Ascent shape. See:
+//   https://github.com/milwil-2/boardlink/issues/1
+const RETIRED_MESSAGE =
+  "MoonBoard support is temporarily unavailable: its web API was decommissioned and the new app " +
+  "backend is gated by Apple App Attest. Track re-enablement at " +
+  "https://github.com/milwil-2/boardlink/issues/1";
 
-  const jar: CookieJar =
-    "token" in auth ? jarFromHeader(auth.token) : await moonLogin(auth.username, auth.password, doFetch, ua);
-
-  const entries = await fetchAllEntries(jar, doFetch, ua);
-  if (entries === null) throw new BoardError("session-expired", "session expired", "moonboard");
-  return { board: "moonboard", token: jarToHeader(jar), ascents: moonEntriesToAscents(entries) };
-}
-
-async function moonLogin(
-  username: string | undefined,
-  password: string | undefined,
-  doFetch: typeof fetch,
-  ua: string,
-): Promise<CookieJar> {
-  if (!username || !password) {
-    throw new BoardError("missing-credentials", "username and password required", "moonboard");
-  }
-  const jar: CookieJar = new Map();
-
-  let page: Response;
-  try {
-    page = await doFetch(`${MOON_HOST}/account/login`, { headers: { "User-Agent": ua } });
-  } catch {
-    throw new BoardError("unreachable", "could not reach MoonBoard", "moonboard");
-  }
-  if (!page.ok) throw new BoardError("unexpected-response", "could not load login page", "moonboard");
-  addSetCookies(jar, page);
-  const html = await page.text();
-  const token = extractInputValue(html, "__RequestVerificationToken");
-  const formKey = extractInputValue(html, "form_key") ?? "";
-  if (!token) throw new BoardError("unexpected-response", "login form changed (no CSRF token)", "moonboard");
-
-  let res: Response;
-  try {
-    res = await doFetch(`${MOON_HOST}/Account/login`, {
-      method: "POST",
-      redirect: "manual",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Referer: `${MOON_HOST}/account/login`,
-        "User-Agent": ua,
-        Cookie: jarToHeader(jar),
-      },
-      body: loginFormBody(username, password, token, formKey),
-    });
-  } catch {
-    throw new BoardError("unreachable", "could not reach MoonBoard", "moonboard");
-  }
-  addSetCookies(jar, res);
-
-  // A successful login redirects and sets an auth cookie; a 200 means the form was re-rendered.
-  const redirected = res.status >= 300 && res.status < 400;
-  const hasAuth = [...jar.keys()].some((k) => /auth|aspnet|moon/i.test(k));
-  if (!redirected && !hasAuth) {
-    throw new BoardError("bad-credentials", "Incorrect MoonBoard email or password.", "moonboard");
-  }
-  return jar;
-}
-
-// Sweeps every board setup, paginating each. Returns null if the session is no longer valid.
-async function fetchAllEntries(jar: CookieJar, doFetch: typeof fetch, ua: string): Promise<MoonEntry[] | null> {
-  const all: MoonEntry[] = [];
-  let sawValidResponse = false;
-
-  for (const setupId of Object.values(MOON_BOARD_IDS)) {
-    for (let page = 1; page <= 25; page++) {
-      const res = await doFetch(`${MOON_HOST}/Logbook/GetLogbook`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "X-Requested-With": "XMLHttpRequest",
-          "User-Agent": ua,
-          Cookie: jarToHeader(jar),
-        },
-        body: logbookBody(setupId, page, PAGE_SIZE),
-      });
-      if (res.status === 401 || res.status === 403) return sawValidResponse ? all : null;
-      if (!res.ok) break;
-      let json: { Data?: MoonEntry[]; Total?: number };
-      try {
-        json = (await res.json()) as typeof json;
-      } catch {
-        return sawValidResponse ? all : null; // HTML instead of JSON means the session lapsed
-      }
-      sawValidResponse = true;
-      const rows = json.Data ?? [];
-      all.push(...(await expandRows(jar, rows, doFetch, ua)));
-      const total = json.Total ?? rows.length;
-      if (rows.length === 0 || total <= PAGE_SIZE * page) break;
-    }
-  }
-  return all;
-}
-
-// A GetLogbook row is either an ascent (has Problem) or a session group (has Id); groups are
-// expanded via GetLogbookEntries.
-async function expandRows(
-  jar: CookieJar,
-  rows: MoonEntry[],
-  doFetch: typeof fetch,
-  ua: string,
-): Promise<MoonEntry[]> {
-  const out: MoonEntry[] = [];
-  for (const row of rows) {
-    if (row.Problem) {
-      out.push(row);
-    } else if (row.Id != null) {
-      const res = await doFetch(`${MOON_HOST}/Logbook/GetLogbookEntries/${row.Id}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "X-Requested-With": "XMLHttpRequest",
-          "User-Agent": ua,
-          Cookie: jarToHeader(jar),
-        },
-        body: logbookBody(0, 1, PAGE_SIZE),
-      });
-      if (!res.ok) continue;
-      try {
-        const json = (await res.json()) as { Data?: MoonEntry[] };
-        out.push(...(json.Data ?? []));
-      } catch {
-        // ignore a malformed page
-      }
-    }
-  }
-  return out;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function connectMoonboard(_auth: BoardAuth, _opts: ConnectOptions = {}): Promise<ConnectResult> {
+  throw new BoardError("retired", RETIRED_MESSAGE, "moonboard");
 }

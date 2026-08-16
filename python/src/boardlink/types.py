@@ -45,6 +45,9 @@ BoardErrorCode = Literal[
     "session-expired",
     "unreachable",
     "unexpected-response",
+    # The board's own API was decommissioned, so this connector cannot function regardless of
+    # credentials. Nothing the caller can do until it is rewritten against the new backend.
+    "retired",
 ]
 
 

@@ -14,6 +14,9 @@ export interface BoardResponse {
   body: Record<string, unknown>;
 }
 
+// MoonBoard is still a recognized board name so the handler can answer with an honest 410 `retired`
+// (via connectBoard) rather than a misleading "unknown board" 400. Its API was retired; see
+// https://github.com/milwil-2/boardlink/issues/1.
 const VALID_BOARDS: BoardSystem[] = ["kilter", "tension", "moonboard"];
 
 const STATUS_FOR: Record<string, number> = {
@@ -22,6 +25,8 @@ const STATUS_FOR: Record<string, number> = {
   "session-expired": 401,
   "unreachable": 502,
   "unexpected-response": 502,
+  // The board's API is gone; 410 Gone is the honest status for a permanently removed connector.
+  "retired": 410,
 };
 
 export async function handleBoardRequest(

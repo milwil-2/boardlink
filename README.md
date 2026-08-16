@@ -3,12 +3,16 @@
 [![CI](https://github.com/milwil-2/boardlink/actions/workflows/ci.yml/badge.svg)](https://github.com/milwil-2/boardlink/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Connect to climbing-board apps (**Kilter**, **Tension**, and **MoonBoard**) and pull your logbook
-as normalized, board-agnostic ascents. One data contract, in both **TypeScript** and **Python**.
+Connect to climbing-board apps (**Kilter** and **Tension**) and pull your logbook as normalized,
+board-agnostic ascents. One data contract, in both **TypeScript** and **Python**.
 
 None of these boards has an official public API. boardlink implements the same flows their own apps
 use, so you can get *your own* climbing data out of them. It's the only library that supports the
 **new Kilter app** (the kiltergrips.com backend Kilter moved to after leaving Aurora in 2025).
+
+> **MoonBoard is temporarily unsupported.** Its old `moonboard.com` web logbook has been retired, and
+> the Moon Climbing app's replacement backend is gated by Apple App Attest, which a third-party client
+> cannot satisfy. Calling it raises a `retired` error. Tracking: [#1](https://github.com/milwil-2/boardlink/issues/1).
 
 > A password is used once to obtain a session token and is never stored. Persist only the returned
 > token for re-syncs.
@@ -19,15 +23,16 @@ use, so you can get *your own* climbing data out of them. It's the only library 
 | --- | --- | --- |
 | Kilter | kiltergrips.com (Keycloak + REST) | OAuth2 + PKCE, refresh token |
 | Tension | Aurora (tensionboardapp2.com) | session token |
-| MoonBoard | moonboard.com | cookie / CSRF session |
+| MoonBoard | *retired* — old web API decommissioned; app backend is App Attest-gated | — |
 
 Each board's reverse-engineered API is documented: [Kilter](docs/kilter-new-api.md),
-[Tension](docs/tension-api.md), and [MoonBoard](docs/moonboard-api.md).
+[Tension](docs/tension-api.md), and [MoonBoard](docs/moonboard-api.md) (retired).
 
 Per-board notes:
 - **Tension** logs in with your Aurora **username**, not your email. Its sync returns grades, dates,
   angles, and tries but not climb names (resolving those needs the full climbs table); `climbName`
-  is left empty. Kilter and MoonBoard return names.
+  is left empty. Kilter returns names.
+- **MoonBoard** is temporarily unsupported; see the note above and [#1](https://github.com/milwil-2/boardlink/issues/1).
 
 ## Repo layout
 

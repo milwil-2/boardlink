@@ -1,7 +1,4 @@
-export const DEFAULT_UA =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36";
-
-// A cookie jar (name -> value) that serializes back into a Cookie header, for MoonBoard's session.
+// A cookie jar (name -> value) that serializes back into a Cookie header, for the Kilter session.
 export type CookieJar = Map<string, string>;
 
 export function addSetCookies(jar: CookieJar, res: Response): void {
@@ -18,12 +15,3 @@ export function addSetCookies(jar: CookieJar, res: Response): void {
 
 export const jarToHeader = (jar: CookieJar): string =>
   [...jar.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
-
-export function jarFromHeader(s: string): CookieJar {
-  const jar: CookieJar = new Map();
-  for (const part of s.split(";")) {
-    const eq = part.indexOf("=");
-    if (eq > 0) jar.set(part.slice(0, eq).trim(), part.slice(eq + 1).trim());
-  }
-  return jar;
-}

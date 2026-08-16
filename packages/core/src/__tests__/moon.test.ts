@@ -69,59 +69,18 @@ describe("moonboard pure mapping", () => {
     expect(ascents[0]!.vGrade).toBe(7);
   });
 });
-
-describe("connectMoonboard (mocked fetch)", () => {
-  it("logs in via cookie jar and returns a serialized-token result", async () => {
-    const loginHtml = `<input name="__RequestVerificationToken" value="CSRF1"><input name="form_key" value="FK1">`;
-    const fakeFetch = (async (url: string, init?: RequestInit) => {
-      const u = String(url);
-      if (u.endsWith("/account/login")) {
-        return new Response(loginHtml, {
-          status: 200,
-          headers: { "set-cookie": "ARRAffinity=abc; path=/" },
-        });
-      }
-      if (u.endsWith("/Account/login")) {
-        return new Response("", {
-          status: 302,
-          headers: { "set-cookie": ".AspNet.ApplicationCookie=sess; path=/", location: "/" },
-        });
-      }
-      if (u.endsWith("/Logbook/GetLogbook")) {
-        // Only the first setup returns a row; the rest are empty.
-        const body = String(init?.body ?? "");
-        const first = body.includes("'1'");
-        return new Response(
-          JSON.stringify({
-            Total: first ? 1 : 0,
-            Data: first
-              ? [{ DateClimbedAsString: "15 Nov 2023", NumberOfTries: "Flashed", Problem: { Grade: "7A+" } }]
-              : [],
-          }),
-          { status: 200, headers: { "content-type": "application/json" } },
-        );
-      }
-      return new Response("", { status: 404 });
-    }) as unknown as typeof fetch;
-
-    const res = await connectMoonboard({ username: "u", password: "p" }, { fetch: fakeFetch });
-    expect(res.board).toBe("moonboard");
-    expect(res.token).toContain(".AspNet.ApplicationCookie=sess");
-    expect(res.ascents).toHaveLength(1);
-    expect(res.ascents[0]!.vGrade).toBe(7);
+describe("connectMoonboard (retired)", () => {
+  it("throws a `retired` BoardError instead of hitting the network", () => {
+    // Support is temporarily removed while the API migration is tracked in issue #1; the connector
+    // must fail immediately and clearly rather than attempt the decommissioned endpoints.
+    expect(() => connectMoonboard({ username: "u", password: "p" })).toThrow(
+      expect.objectContaining({ code: "retired", board: "moonboard" }),
+    );
   });
 
-  it("throws bad-credentials when login neither redirects nor sets an auth cookie", async () => {
-    const loginHtml = `<input name="__RequestVerificationToken" value="CSRF1">`;
-    const fakeFetch = (async (url: string) => {
-      const u = String(url);
-      if (u.endsWith("/account/login")) return new Response(loginHtml, { status: 200 });
-      if (u.endsWith("/Account/login")) return new Response(loginHtml, { status: 200 }); // re-rendered form
-      return new Response("", { status: 404 });
-    }) as unknown as typeof fetch;
-
-    await expect(
-      connectMoonboard({ username: "u", password: "bad" }, { fetch: fakeFetch }),
-    ).rejects.toMatchObject({ code: "bad-credentials" });
+  it("is retired regardless of whether a token or credentials are supplied", () => {
+    expect(() => connectMoonboard({ token: "whatever" })).toThrow(
+      expect.objectContaining({ code: "retired" }),
+    );
   });
 });

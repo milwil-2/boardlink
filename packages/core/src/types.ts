@@ -79,7 +79,7 @@ export interface ConnectResult {
 export interface ConnectOptions {
   /** Inject a fetch implementation (for tests, proxies, or non-global-fetch runtimes). */
   fetch?: typeof fetch;
-  /** Override the User-Agent header (MoonBoard is picky about it). */
+  /** Override the User-Agent header sent to the board. */
   userAgent?: string;
   /**
    * Tension only. Force the offline-catalog path, resolving the climb names Aurora's sync omits from
@@ -107,7 +107,13 @@ export type BoardErrorCode =
   | "bad-credentials"
   | "session-expired"
   | "unreachable"
-  | "unexpected-response";
+  | "unexpected-response"
+  /**
+   * The board's own API was decommissioned, so this connector cannot function regardless of
+   * credentials. Distinct from `unreachable` (transient): there is nothing the caller can do until
+   * the connector is rewritten against the new backend.
+   */
+  | "retired";
 
 /** Typed error for all board failures, so callers can branch on {@link code} not string matching. */
 export class BoardError extends Error {
