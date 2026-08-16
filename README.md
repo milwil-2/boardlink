@@ -21,7 +21,8 @@ use, so you can get *your own* climbing data out of them. It's the only library 
 | Tension | Aurora (tensionboardapp2.com) | session token |
 | MoonBoard | moonboard.com | cookie / CSRF session |
 
-The reverse-engineered new-Kilter API is documented in [docs/kilter-new-api.md](docs/kilter-new-api.md).
+Each board's reverse-engineered API is documented: [Kilter](docs/kilter-new-api.md),
+[Tension](docs/tension-api.md), and [MoonBoard](docs/moonboard-api.md).
 
 Per-board notes:
 - **Tension** logs in with your Aurora **username**, not your email. Its sync returns grades, dates,
